@@ -35,7 +35,7 @@ This step is for users who prefer to obtain the binaries themselves.
 
 The total latency was measured to be **27ms** using a [loop-back cable](https://manual.audacityteam.org/man/latency_test.html) by connecting the line input and line output on a computer and performing the latency test in Audacity.
 
-Lower-latency alternatives such as [VB-Audio Cable / KSAudioStreamer]((https://sourceforge.net/p/hesuvi/wiki/Help/#71-virtualization)) tend to be unstable and/or causes crackling.
+Lower-latency alternatives such as [VB-Audio Cable / KSAudioStreamer](https://sourceforge.net/p/hesuvi/wiki/Help/#71-virtualization) tend to be unstable and/or causes crackling.
 
 # SteelSeries GG version differences
 
