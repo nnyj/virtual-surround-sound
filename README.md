@@ -42,7 +42,7 @@ Lower-latency alternatives such as [VB-Audio Cable / KSAudioStreamer](https://so
 | Version         | Bit depth | Sample rate (kHz) | Remarks                                                                                                    |
 | --------------- | --------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
 | 14.0.0 - 24.0.0 | 16        | 48                | Drivers can be found in `sonar/driver`. V18.0.0 is the last version that does not include machine learning DLL files. It is not required for this guide. |
-| 19.0.0 - 41.0.0 | 24        | 96                | As of V28.0.0, drivers were moved to `apps/sonar/driver`. Installation scripts are still working.                                                    |
+| 25.0.0 - 41.0.0 | 24        | 96                | As of V28.0.0, drivers were moved to `apps/sonar/driver`. Installation scripts are still working.                                                    |
 
 Users are suggested to use version 14.0.0 - 24.0.0 as HeSuVi already includes HRIR files for 48kHz and requires no additional effort by users to convert it to a different sample rate.
 
