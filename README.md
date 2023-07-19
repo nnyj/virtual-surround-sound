@@ -54,5 +54,5 @@ Official GG changelog can be found [here](https://techblog.steelseries.com/).
 
 # Credits
 
-SteelSeries - For creating the virtual audio device known as Sonar.
-NirSoft - SoundVolumeView for easily switching audio devices.
+- SteelSeries - For creating the virtual audio device known as Sonar.
+- NirSoft - SoundVolumeView for easily switching audio devices.
