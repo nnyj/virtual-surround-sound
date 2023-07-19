@@ -35,7 +35,7 @@ This step is for users who prefer to obtain the binaries themselves.
 
 The total latency was measured to be **27ms** using a [loop-back cable](https://manual.audacityteam.org/man/latency_test.html) by connecting the line input and line output on a computer and performing the latency test in Audacity.
 
-Lower-latency alternatives such as [VB-Audio Cable / KSAudioStreamer](https://sourceforge.net/p/hesuvi/wiki/Help/#71-virtualization) tend to be unstable and/or causes crackling.
+Lower latency alternatives such as [VB-Audio Cable / Audio Repeater KS](https://sourceforge.net/p/hesuvi/wiki/Help/#71-virtualization) could achieve 7ms but tend to be unstable and/or causes crackling.
 
 ## SteelSeries GG version differences
 
@@ -44,7 +44,7 @@ Lower-latency alternatives such as [VB-Audio Cable / KSAudioStreamer](https://so
 | 14.0.0 - 24.0.0 | 16        | 48                | Drivers can be found in `sonar/driver`. V18.0.0 is the last version that does not include machine learning DLL files. It is not required for this guide. |
 | 25.0.0 - 41.0.0 | 24        | 96                | As of V28.0.0, drivers were moved to `apps/sonar/driver`. Installation scripts are still working.                                                    |
 
-Users are suggested to use version 14.0.0 - 24.0.0 as HeSuVi already includes HRIR files for 48kHz and requires no additional effort by users to convert it to a different sample rate.
+Users are encouraged to use version 14.0.0 - 24.0.0 as HeSuVi already includes HRIR files for 48kHz and requires no additional effort by users to convert it to a different sample rate.
 
 There are no latency differences between 48kHz and 96kHz, both were measured to be 27ms.
 
