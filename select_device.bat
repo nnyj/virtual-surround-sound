@@ -47,6 +47,7 @@ for /f "delims=" %%c in ('reg query "HKLM\%notifBase%" 2^>nul ^| findstr /r "[0-
 set "gscPath=!notifBase!\!clientKey!\GlobalSettingChanged"
 set "tmpName=%random%%random%"
 powershell -Command "$k=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('%gscPath%',$true); $s=$k.CreateSubKey('%tmpName%','Default','Volatile'); $s.SetValue('Setting',175,'DWord'); $s.Close(); try{$k.DeleteSubKeyTree('%tmpName%')}catch{}; $k.Close()"
+%soundvolumeview% /Enable "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"
 %soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 0
 %soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 2
 
