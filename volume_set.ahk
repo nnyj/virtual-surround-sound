@@ -12,6 +12,10 @@ catch {
   ExitApp
 }
 
+IsDefaultDevice() {
+  return InStr(SoundGetName(), "SteelSeries Sonar - Gaming")
+}
+
 GetDevice() {
   global AudioDevice, RegKey
   try
@@ -19,7 +23,11 @@ GetDevice() {
   return AudioDevice
 }
 
-Volume(Offset) {
+Volume(Offset, Key) {
+  if !IsDefaultDevice() {
+    Send("{" Key "}")
+    return
+  }
   dev := GetDevice()
   try {
     SoundSetVolume Format("{:+d}", Offset), , dev
@@ -82,5 +90,5 @@ HideFlyout(*) {
   BorderGui.Hide()
 }
 
-$Volume_Up::Volume("+2")
-$Volume_Down::Volume("-2")
+$Volume_Up::Volume("+2", "Volume_Up")
+$Volume_Down::Volume("-2", "Volume_Down")
