@@ -1,55 +1,56 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-rem Enumerate and select audio devices
-set soundvolumeview="soundvolumeview.exe"
-%soundvolumeview% /scomma device.csv /Columns "Name,Type,Direction,DeviceName,ItemID"
+set "soundvolumeview=soundvolumeview.exe"
 
-set i=0
+:enumerate_devices
+cls
+rem Enumerate and select audio devices
+set "i=0"
 echo Devices:
-for /f "tokens=1,2,3,4,5 delims=, skip=1" %%a in (device.csv) do (
+for /f "tokens=1,2,3,4,5 delims=, skip=1" %%a in ('%soundvolumeview% /scomma "" /Columns "Name,Type,Direction,DeviceName,ItemID"') do (
   if "%%b" equ "Device" (
     if "%%c" equ "Render" (
       set /A i+=1
-	  echo !i!. %%a: %%d
-	  set "option[!i!]=%%e"
-	)
+      echo !i!. %%a: %%d
+      set "names[!i!]=%%a"
+      set "deviceNames[!i!]=%%d"
+      set "option[!i!]=%%e"
+    )
   )
 )
-
-:getChoice
-set /P "choice=Enter desired option: "
-if "!option[%choice%]!" equ "" echo ERROR: no such option & goto getChoice
+set "choice="
+set /P "choice=Enter desired option (or press Enter to refresh):"
+if "%choice%"=="" goto enumerate_devices
+if "!option[%choice%]!" equ "" goto enumerate_devices
 set "deviceid=!option[%choice%]!"
-echo/
+set "name=!names[%choice%]!"
+set "deviceName=!deviceNames[%choice%]!"
+echo.
 echo Device ID       : %deviceid%
 
-rem Store the string in chr.tmp file without newline & space
-echo | set /p deviceid="%deviceid%" > chr.txt
-
-rem Convert string to hex
-certutil -encodehex -f chr.txt chr.tmp 12 > NUL
-set /P hex= < chr.tmp
-echo Device ID (Hex) : %hex%
-
-rem Generate StreamRedirectionDeviceId hex
-set pos=0
-set StreamRedirectionDeviceId=
-:nextChar
-  rem echo Char %pos% is '!hex:~%pos%,2!'
-  set "StreamRedirectionDeviceId=!StreamRedirectionDeviceId!!hex:~%pos%,2!00"
-  set /a pos=pos+2
-  if "!hex:~%pos%,2!" NEQ "" goto NextChar
-set "StreamRedirectionDeviceId=!StreamRedirectionDeviceId!0000"
-del device.csv chr.txt chr.tmp
+rem Convert device ID to StreamRedirectionDeviceId hex (UTF-16LE + null terminator)
+for /f "delims=" %%h in ('powershell -NoProfile -Command "$b=[System.Text.Encoding]::Unicode.GetBytes('%deviceid%'+[char]0); -join($b|ForEach-Object{'{0:X2}'-f$_})"') do set "StreamRedirectionDeviceId=%%h"
 echo Final Hex Output: %StreamRedirectionDeviceId%
 
 rem Route audio to desired device
-reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionDeviceIdCount /t REG_DWORD /d 56 /f
-reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionState /t REG_DWORD /d 1 /f
-reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionDeviceId /t REG_BINARY /d %StreamRedirectionDeviceId% /f
-%soundvolumeview% /Disable "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"
-%soundvolumeview% /Enable "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"
-%soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 0
+reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionDeviceIdCount /t REG_DWORD /d 56 /f >nul
+reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionState /t REG_DWORD /d 1 /f >nul
+reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionDeviceId /t REG_BINARY /d %StreamRedirectionDeviceId% /f >nul
 
-rem pause
+rem Notify APO to reload settings
+rem   APO watches `GlobalSettingChanged` via RegNotifyChangeKeyValue
+rem   Write volatile subkey under NotificationClients\{clientId}\GlobalSettingChanged\{tmpId}
+rem   Setting = REG_DWORD 175 (stream redirection category), then delete subkey
+set "notifBase=SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\NotificationClients"
+for /f "delims=" %%c in ('reg query "HKLM\%notifBase%" 2^>nul ^| findstr /r "[0-9]"') do set "clientKey=%%~nxc"
+set "gscPath=!notifBase!\!clientKey!\GlobalSettingChanged"
+set "tmpName=%random%%random%"
+powershell -Command "$k=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('%gscPath%',$true); $s=$k.CreateSubKey('%tmpName%','Default','Volatile'); $s.SetValue('Setting',175,'DWord'); $s.Close(); try{$k.DeleteSubKeyTree('%tmpName%')}catch{}; $k.Close()"
+%soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 0
+%soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 2
+
+rem Store audio device in registry for AHK
+reg add "HKCU\SOFTWARE\SteelSeries ApS\Sonar.APO\AHK" /v AudioDevice /t REG_SZ /d "%name% (%deviceName%)" /f >nul
+
+start "" "%~dp0volume_set.ahk"
