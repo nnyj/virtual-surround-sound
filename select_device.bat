@@ -38,6 +38,9 @@ set "apoBase=SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings"
 reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionState /t REG_DWORD /d 1 /f >nul
 reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionDeviceIdCount /t REG_DWORD /d 56 /f >nul
 reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionDeviceId /t REG_BINARY /d %StreamRedirectionDeviceId% /f >nul
+reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_RenderState /t REG_DWORD /d 1 /f >nul
+reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionGainLin /t REG_DWORD /d 1065353216 /f >nul
+reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionMute /t REG_DWORD /d 0 /f >nul
 rem Write to active stream (volatile key, must use .NET) and touch ModifiedRender
 powershell -NoProfile -Command "$hex='%StreamRedirectionDeviceId%'; [byte[]]$bytes=for($i=0;$i -lt $hex.Length;$i+=2){[convert]::ToByte($hex.Substring($i,2),16)}; $base='%apoBase%'; $hklm=[Microsoft.Win32.Registry]::LocalMachine; $root=$hklm.OpenSubKey(\"$base\Streams\"); if(-not $root){exit}; foreach($s in $root.GetSubKeyNames()){$k=$hklm.OpenSubKey(\"$base\Streams\$s\",$true); if(-not $k){continue}; [byte[]]$ff=New-Object byte[] 28; for($j=0;$j -lt 28;$j++){$ff[$j]=0xFF}; $k.SetValue('kSet_StreamRedirectionState',1,'DWord'); $k.SetValue('ModifiedRender',$ff,'Binary'); $k.SetValue('kSet_StreamRedirectionDeviceIdCount',56,'DWord'); $k.SetValue('kSet_StreamRedirectionDeviceId',$bytes,'Binary'); $k.Close()}; $root.Close()"
 %soundvolumeview% /Enable "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"

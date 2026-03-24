@@ -17,6 +17,8 @@ setlocal EnableDelayedExpansion
   pause & exit/b
 )
 
-"%~dp0apoDriverPackage\Sonar.AgsSetup.exe" "Game" "ChatRender" "ChatCapture"
+"%~dp0apoDriverPackage\Sonar.AgsSetup.exe" "Game" "ChatRender" "ChatCapture" "Media" "Aux"
 
 "%~dp0Sonar.DevInst.exe" add --device-hwid "ROOT\VEN_SSGG&DEV_0001" --inf "%~dp0vad\SteelSeries-Sonar-VAD.inf" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf" --inf "%~dp0vad\SteelSeries-Sonar-VAD-Extension.inf"
+
+"%~dp0Sonar.DevInst.exe" register --cat="sonar.apo.cat" --com="Sonar.APO.dll" --com="Sonar.APOAPI.dll" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf"

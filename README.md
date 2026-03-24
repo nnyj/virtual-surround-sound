@@ -17,7 +17,7 @@ For users who prefer to obtain the binaries themselves:
 
 1. Clone or download this repository.
 2. Download [SoundVolumeView](https://www.nirsoft.net/utils/soundvolumeview-x64.zip) (NirSoft) and place the exe in the repository root.
-3. Download [SteelSeries GG](https://drivers.softpedia.com/get/KEYBOARD-and-MOUSE/Steelseries/SteelSeries-GG-Utility-22-0-0-64-bit.shtml) (see [version notes](#steelseries-gg-version-differences) for which version to choose).
+3. Download SteelSeries GG [v18.0.0](https://drivers.softpedia.com/get/KEYBOARD-and-MOUSE/Steelseries/SteelSeries-GG-Utility-18-0-0-64-bit.shtml) or [Latest](https://steelseries.com/gg/downloads/gg/latest/windows) (see [version notes](#steelseries-gg-version-differences) for which version to choose).
 4. Open the installer with [7-Zip](https://www.7-zip.org/download.html), extract the `sonar/driver` folder into the repository root.
 5. Run `driver\install.bat` as admin.
 
@@ -53,7 +53,7 @@ The selected device is also saved to the registry so the volume script can refer
 
 ## Latency
 
-Measured at **27 ms** round-trip using a [loopback cable test](https://manual.audacityteam.org/man/latency_test.html) in Audacity. No difference was observed between 48 kHz and 96 kHz sample rates.
+Measured at **~20-27 ms** using a [loopback cable test](https://support.audacityteam.org/troubleshooting/solving-recording-problems/latency-compensation) in Audacity. No difference was observed between 48 kHz and 96 kHz sample rates.
 
 Lower latency alternatives like [VB-Audio Cable / Audio Repeater KS](https://sourceforge.net/p/hesuvi/wiki/Help/#71-virtualization) could achieve 7ms but tend to be unstable or produce crackling.
 
@@ -62,13 +62,11 @@ Lower latency alternatives like [VB-Audio Cable / Audio Repeater KS](https://sou
 | Version | Bit depth | Sample rate | Remarks |
 |---|---|---|---|
 | 14.0.0 – 24.0.0 | 16-bit | 48 kHz | Driver in `sonar/driver`. V18.0.0 is the leanest — no bundled ML libraries. |
-| 25.0.0 – 41.0.0 | 24-bit | 96 kHz | Driver path changed to `apps/sonar/driver` from V28.0.0 onward. Install scripts handle both. |
+| 25.0.0 – 106.1.0 | 24-bit | 96 kHz | Driver path changed to `apps/sonar/driver` from V28.0.0 onward. APO requires render-state and gain keys in addition to redirection keys. Exposes multiple VAD outputs (Gaming at 96KHz, Chat at 48Khz) |
 
 **Recommended:** V14–24 (48 kHz). HeSuVi ships with 48 kHz HRIR files out of the box — no sample-rate conversion needed.
 
-Later GG versions (40+) expose multiple VAD outputs at different sample rates. Switching between them is possible but not yet scripted. Pull requests welcome.
-
-Official GG changelog: [techblog.steelseries.com](https://techblog.steelseries.com/)
+Changelog: [techblog.steelseries.com](https://techblog.steelseries.com/)
 
 ## Credits
 

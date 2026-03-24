@@ -31,6 +31,9 @@ GlobalControl\
     kSet_StreamRedirectionState      REG_DWORD   1 = enabled
     kSet_StreamRedirectionDeviceIdCount  REG_DWORD   56 (byte count of device ID)
     kSet_StreamRedirectionDeviceId   REG_BINARY  UTF-16LE + null terminator of device GUID
+    kSet_RenderState                   REG_DWORD   1 = enable rendering
+    kSet_StreamRedirectionGainLin      REG_DWORD   1065353216 (1.0f IEEE 754 = unity gain)
+    kSet_StreamRedirectionMute         REG_DWORD   0 = not muted
 Streams\
   {streamId}\                     <- VOLATILE keys (created by audiodg per audio stream)
     kSet_StreamRedirectionState      same as above
@@ -61,6 +64,9 @@ rem 1. Persist to GlobalControl\Store
 reg add "HKLM\...\GlobalControl\Store" /v kSet_StreamRedirectionState /t REG_DWORD /d 1 /f
 reg add "HKLM\...\GlobalControl\Store" /v kSet_StreamRedirectionDeviceIdCount /t REG_DWORD /d 56 /f
 reg add "HKLM\...\GlobalControl\Store" /v kSet_StreamRedirectionDeviceId /t REG_BINARY /d %hex% /f
+reg add "HKLM\...\GlobalControl\Store" /v kSet_RenderState /t REG_DWORD /d 1 /f
+reg add "HKLM\...\GlobalControl\Store" /v kSet_StreamRedirectionGainLin /t REG_DWORD /d 1065353216 /f
+reg add "HKLM\...\GlobalControl\Store" /v kSet_StreamRedirectionMute /t REG_DWORD /d 0 /f
 
 rem 2. Write to every active stream + signal ModifiedRender (volatile, .NET required)
 powershell -NoProfile -Command "
@@ -80,6 +86,7 @@ soundvolumeview /SetDefault "SteelSeries Sonar Virtual Audio Device\...\Render" 
 - APO polls every ~30ms so all writes complete before it reads
 - `reg.exe` cannot access volatile keys, must use .NET `[Microsoft.Win32.Registry]`
 - `SetDefault` (both 0 and 2) ensures Windows routes audio through the Sonar endpoint
+- `kSet_RenderState`, `kSet_StreamRedirectionGainLin`, and `kSet_StreamRedirectionMute` are required for the 96 kHz VAD (V25+) — without them the APO silently drops audio even when redirection is configured correctly
 
 ## Other Sonar Channels
 
