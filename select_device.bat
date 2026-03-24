@@ -9,18 +9,16 @@ rem Enumerate and select audio devices
 set "i=0"
 echo Devices:
 for /f "tokens=1,2,3,4,5 delims=, skip=1" %%a in ('%soundvolumeview% /scomma "" /Columns "Name,Type,Direction,DeviceName,ItemID"') do (
-  if "%%b" equ "Device" (
-    if "%%c" equ "Render" (
-      set /A i+=1
-      echo !i!. %%a: %%d
-      set "names[!i!]=%%a"
-      set "deviceNames[!i!]=%%d"
-      set "option[!i!]=%%e"
-    )
+  if "%%b" equ "Device" if "%%c" equ "Render" if "%%d" neq "SteelSeries Sonar Virtual Audio Device" (
+    set /A i+=1
+    echo !i!. %%a: %%d
+    set "names[!i!]=%%a"
+    set "deviceNames[!i!]=%%d"
+    set "option[!i!]=%%e"
   )
 )
 set "choice="
-set /P "choice=Enter desired option (or press Enter to refresh):"
+set /P "choice=Enter desired option (or press Enter to refresh): "
 if "%choice%"=="" goto enumerate_devices
 if "!option[%choice%]!" equ "" goto enumerate_devices
 set "deviceid=!option[%choice%]!"
@@ -41,11 +39,23 @@ reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionDeviceId /
 reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_RenderState /t REG_DWORD /d 1 /f >nul
 reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionGainLin /t REG_DWORD /d 1065353216 /f >nul
 reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionMute /t REG_DWORD /d 0 /f >nul
+
 rem Write to active stream (volatile key, must use .NET) and touch ModifiedRender
-powershell -NoProfile -Command "$hex='%StreamRedirectionDeviceId%'; [byte[]]$bytes=for($i=0;$i -lt $hex.Length;$i+=2){[convert]::ToByte($hex.Substring($i,2),16)}; $base='%apoBase%'; $hklm=[Microsoft.Win32.Registry]::LocalMachine; $root=$hklm.OpenSubKey(\"$base\Streams\"); if(-not $root){exit}; foreach($s in $root.GetSubKeyNames()){$k=$hklm.OpenSubKey(\"$base\Streams\$s\",$true); if(-not $k){continue}; [byte[]]$ff=New-Object byte[] 28; for($j=0;$j -lt 28;$j++){$ff[$j]=0xFF}; $k.SetValue('kSet_StreamRedirectionState',1,'DWord'); $k.SetValue('ModifiedRender',$ff,'Binary'); $k.SetValue('kSet_StreamRedirectionDeviceIdCount',56,'DWord'); $k.SetValue('kSet_StreamRedirectionDeviceId',$bytes,'Binary'); $k.SetValue('kSet_RenderState',1,'DWord'); $k.SetValue('kSet_StreamRedirectionGainLin',1065353216,'DWord'); $k.SetValue('kSet_StreamRedirectionMute',0,'DWord'); $k.Close()}; $root.Close()"
-%soundvolumeview% /Enable "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"
-%soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 0
-%soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 2
+powershell -NoProfile -Command ^
+  "$hklm=[Microsoft.Win32.Registry]::LocalMachine;" ^
+  "$hex='%StreamRedirectionDeviceId%';" ^
+  "[byte[]]$bytes=for($i=0;$i -lt $hex.Length;$i+=2){[convert]::ToByte($hex.Substring($i,2),16)};" ^
+  "if($root=$hklm.OpenSubKey('%apoBase%\Streams')){" ^
+  "  $root.GetSubKeyNames()|ForEach-Object{" ^
+  "    if($key=$hklm.OpenSubKey('%apoBase%\Streams\'+$_,$true)){" ^
+  "      $key.SetValue('ModifiedRender',[byte[]](@(0xFF)*28),'Binary');" ^
+  "      $key.SetValue('kSet_StreamRedirectionDeviceId',$bytes,'Binary');" ^
+  "      @{kSet_StreamRedirectionState=1;kSet_StreamRedirectionDeviceIdCount=56;kSet_RenderState=1;kSet_StreamRedirectionGainLin=1065353216;kSet_StreamRedirectionMute=0}.GetEnumerator()|ForEach-Object{$key.SetValue($_.Key,$_.Value,'DWord')};" ^
+  "      $key.Close()}};$root.Close()}"
+set "sonarRender=SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"
+%soundvolumeview% /Enable "%sonarRender%"
+%soundvolumeview% /SetDefault "%sonarRender%" 0
+%soundvolumeview% /SetDefault "%sonarRender%" 2
 
 rem Store audio device in registry for AHK
 reg add "HKCU\SOFTWARE\SteelSeries ApS\Sonar.APO\AHK" /v AudioDevice /t REG_SZ /d "%name% (%deviceName%)" /f >nul
