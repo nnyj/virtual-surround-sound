@@ -33,20 +33,13 @@ rem Convert device ID to StreamRedirectionDeviceId hex (UTF-16LE + null terminat
 for /f "delims=" %%h in ('powershell -NoProfile -Command "$b=[System.Text.Encoding]::Unicode.GetBytes('%deviceid%'+[char]0); -join($b|ForEach-Object{'{0:X2}'-f$_})"') do set "StreamRedirectionDeviceId=%%h"
 echo Final Hex Output: %StreamRedirectionDeviceId%
 
-rem Route audio to desired device
-reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionDeviceIdCount /t REG_DWORD /d 56 /f >nul
-reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionState /t REG_DWORD /d 1 /f >nul
-reg add "HKLM\SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\GlobalControl\Store" /v kSet_StreamRedirectionDeviceId /t REG_BINARY /d %StreamRedirectionDeviceId% /f >nul
-
-rem Notify APO to reload settings
-rem   APO watches `GlobalSettingChanged` via RegNotifyChangeKeyValue
-rem   Write volatile subkey under NotificationClients\{clientId}\GlobalSettingChanged\{tmpId}
-rem   Setting = REG_DWORD 175 (stream redirection category), then delete subkey
-set "notifBase=SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\NotificationClients"
-for /f "delims=" %%c in ('reg query "HKLM\%notifBase%" 2^>nul ^| findstr /r "[0-9]"') do set "clientKey=%%~nxc"
-set "gscPath=!notifBase!\!clientKey!\GlobalSettingChanged"
-set "tmpName=%random%%random%"
-powershell -Command "$k=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('%gscPath%',$true); $s=$k.CreateSubKey('%tmpName%','Default','Volatile'); $s.SetValue('Setting',175,'DWord'); $s.Close(); try{$k.DeleteSubKeyTree('%tmpName%')}catch{}; $k.Close()"
+rem Route audio to desired device (GlobalControl for persistence, Streams for live APO)
+set "apoBase=SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings"
+reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionState /t REG_DWORD /d 1 /f >nul
+reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionDeviceIdCount /t REG_DWORD /d 56 /f >nul
+reg add "HKLM\%apoBase%\GlobalControl\Store" /v kSet_StreamRedirectionDeviceId /t REG_BINARY /d %StreamRedirectionDeviceId% /f >nul
+rem Write to active stream (volatile key, must use .NET) and touch ModifiedRender
+powershell -NoProfile -Command "$hex='%StreamRedirectionDeviceId%'; [byte[]]$bytes=for($i=0;$i -lt $hex.Length;$i+=2){[convert]::ToByte($hex.Substring($i,2),16)}; $base='%apoBase%'; $hklm=[Microsoft.Win32.Registry]::LocalMachine; $root=$hklm.OpenSubKey(\"$base\Streams\"); if(-not $root){exit}; foreach($s in $root.GetSubKeyNames()){$k=$hklm.OpenSubKey(\"$base\Streams\$s\",$true); if(-not $k){continue}; [byte[]]$ff=New-Object byte[] 28; for($j=0;$j -lt 28;$j++){$ff[$j]=0xFF}; $k.SetValue('kSet_StreamRedirectionState',1,'DWord'); $k.SetValue('ModifiedRender',$ff,'Binary'); $k.SetValue('kSet_StreamRedirectionDeviceIdCount',56,'DWord'); $k.SetValue('kSet_StreamRedirectionDeviceId',$bytes,'Binary'); $k.Close()}; $root.Close()"
 %soundvolumeview% /Enable "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"
 %soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 0
 %soundvolumeview% /SetDefault "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render" 2

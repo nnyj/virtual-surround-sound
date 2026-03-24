@@ -47,6 +47,10 @@ The selected device is also saved to the registry so the volume script can refer
 
 > **Note:** The script reads the target device from the registry key written by `select_device.bat`. If you haven't run `select_device.bat` at least once, the script will exit with an error.
 
+## How device selection works
+
+`select_device.bat` writes the target device GUID directly to the Sonar APO's registry keys and signals it to reload — no SteelSeries GG process needed, no audio glitch. For the full registry layout, polling mechanism, and architecture details, see [docs/sonar-apo-internals.md](docs/sonar-apo-internals.md).
+
 ## Latency
 
 Measured at **27 ms** round-trip using a [loopback cable test](https://manual.audacityteam.org/man/latency_test.html) in Audacity. No difference was observed between 48 kHz and 96 kHz sample rates.

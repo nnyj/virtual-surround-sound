@@ -20,17 +20,3 @@ setlocal EnableDelayedExpansion
 "%~dp0apoDriverPackage\Sonar.AgsSetup.exe" "Game" "ChatRender" "ChatCapture"
 
 "%~dp0Sonar.DevInst.exe" add --device-hwid "ROOT\VEN_SSGG&DEV_0001" --inf "%~dp0vad\SteelSeries-Sonar-VAD.inf" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf" --inf "%~dp0vad\SteelSeries-Sonar-VAD-Extension.inf"
-
-rem Initialize NotificationClients key and grant Users write access for APO reload notifications
-set "notifKey=SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings\NotificationClients"
-reg query "HKLM\%notifKey%\2720411704\GlobalSettingChanged" >nul 2>nul && goto :skip_notif
-powershell -NoProfile -Command ^
-  "$k='%notifKey%';" ^
-  "$r=[Microsoft.Win32.Registry]::LocalMachine;" ^
-  "$o=$r.OpenSubKey($k,[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[Security.AccessControl.RegistryRights]::TakeOwnership);" ^
-  "$a=$o.GetAccessControl();$a.SetOwner([Security.Principal.WindowsIdentity]::GetCurrent().User);$o.SetAccessControl($a);$o.Close();" ^
-  "$o=$r.OpenSubKey($k,[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[Security.AccessControl.RegistryRights]::ChangePermissions);" ^
-  "$a=$o.GetAccessControl();$a.AddAccessRule((New-Object Security.AccessControl.RegistryAccessRule 'BUILTIN\Users','FullControl','ContainerInherit,ObjectInherit','None','Allow'));" ^
-  "$o.SetAccessControl($a);$o.Close();" ^
-  "New-Item 'HKLM:\%notifKey%\2720411704\GlobalSettingChanged' -Force >$null"
-:skip_notif
