@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Date>2026-05-31T00:00:00</Date>
+    <Author>virtual-surround-sound</Author>
+    <URI>\vss-route</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <EventTrigger>
+      <Enabled>true</Enabled>
+      <Subscription>&lt;QueryList&gt;&lt;Query Id="0" Path="Microsoft-Windows-Audio/Operational"&gt;&lt;Select Path="Microsoft-Windows-Audio/Operational"&gt;*[System[Provider[@Name='Microsoft-Windows-Audio'] and EventID=65]] and *[EventData[Data[@Name='flow']='0']]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>
+      <ValueQueries>
+        <Value name="deviceName">Event/EventData/Data[@Name='DeviceName']</Value>
+        <Value name="newState">Event/EventData/Data[@Name='NewState']</Value>
+        <Value name="deviceId">Event/EventData/Data[@Name='DeviceId']</Value>
+      </ValueQueries>
+    </EventTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>Queue</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>true</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>wscript.exe</Command>
+      <Arguments>"__repo_dir__\tasks\silent_arg.vbs" "__repo_dir__\scripts\vss-device-select.bat" auto "$(deviceName)" "$(newState)" "$(deviceId)"</Arguments>
+    </Exec>
+  </Actions>
+</Task>

@@ -1,0 +1,11 @@
+SoundVolumeView (soundvolumeview.exe)
+Copyright (c) 2014 - 2026 Nir Sofer
+Source: https://www.nirsoft.net/utils/sound_volume_view.html
+
+License notice:
+This utility is released as freeware by NirSoft.
+Redistribution is allowed by NirSoft only when distributed free of charge,
+not sold, not distributed as part of a commercial product, and kept unmodified
+with all files from the distribution package.
+
+This project's LICENSE does not apply to NirSoft binaries.

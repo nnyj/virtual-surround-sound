@@ -8,7 +8,7 @@ RegKey := "HKCU\SOFTWARE\SteelSeries ApS\Sonar.APO\AHK"
 try
   AudioDevice := RegRead(RegKey, "AudioDevice")
 catch {
-  MsgBox "Registry key not found. Run Steelseries_select_device.bat first."
+  MsgBox "Registry key not found. Run vss-device-select.bat first."
   ExitApp
 }
 
@@ -23,11 +23,14 @@ GetDevice() {
   return AudioDevice
 }
 
-Volume(Offset, Key) {
-  if !IsDefaultDevice() {
-    Send("{" Key "}")
+IsMouseLocal() {
+  try return WinGetProcessName("A") != "PowerToys.MouseWithoutBordersHelper.exe"
+  return true
+}
+
+Volume(Offset) {
+  if !IsDefaultDevice()
     return
-  }
   dev := GetDevice()
   try {
     SoundSetVolume Format("{:+d}", Offset), , dev
@@ -35,23 +38,28 @@ Volume(Offset, Key) {
   }
 }
 
-BorderW := 300, BorderH := 56, BorderR := 18
-FlyoutW := BorderW - 2, FlyoutH := BorderH - 2, FlyoutR := BorderR - 1
+; Draw border and fill as separate borderless windows for rounded outline.
+BorderW := 192
+BorderH := 48
+BorderR := 16
+FlyoutW := BorderW - 2
+FlyoutH := BorderH - 2
+FlyoutR := BorderR - 1
 
-BorderGui := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000000")
-BorderGui.BackColor := "555555"
+BorderGui := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000000 -DPIScale")
+BorderGui.BackColor := "222222"
 
-FlyoutGui := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000000 +Owner" BorderGui.Hwnd)
-FlyoutGui.BackColor := "1e1e1e"
-FlyoutGui.SetFont("s14", "Segoe UI")
-FlyoutGui.MarginX := 16
-FlyoutGui.MarginY := 12
+FlyoutGui := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000000 -DPIScale +Owner" BorderGui.Hwnd)
+FlyoutGui.BackColor := "2b2b2b"
+FlyoutGui.SetFont("s12", "Segoe MDL2 Assets")
+FlyoutGui.MarginX := 0
+FlyoutGui.MarginY := 0
 
-FlyoutGui.Add("Text", "vIconText cBBBBBB w28 Center Section", "🔊")
+FlyoutGui.Add("Text", "vIconText cFFFFFF x12 w28 h" FlyoutH " Center +0x200 Section", Chr(0xE995))
 FlyoutGui.SetFont("s9", "Segoe UI")
-FlyoutGui.Add("Progress", "vVolumeBar w170 h6 c5294E2 Background3a3a3a Range0-100 ys+11 x+8", 0)
-FlyoutGui.SetFont("s13", "Segoe UI")
-FlyoutGui.Add("Text", "vVolText cCCCCCC w42 Right ys+1 x+4", "100")
+FlyoutGui.Add("Progress", "vVolumeBar w102 h6 c5294E2 Background505050 Range0-100 ys+20 x+4", 0)
+FlyoutGui.SetFont("s11", "Segoe UI Variable Display")
+FlyoutGui.Add("Text", "vVolText cFFFFFF w32 h" FlyoutH " Right +0x200 ys x+0", "100")
 
 FlyoutGui.OnEvent("Escape", (*) => FlyoutGui.Hide())
 
@@ -62,12 +70,12 @@ RoundCorners(guiObj, w, h, r) {
 
 VolIcon(vol) {
   if (vol <= 0)
-    return "🔇"
+    return Chr(0xE74F)
   if (vol <= 33)
-    return "🔈"
+    return Chr(0xE993)
   if (vol <= 66)
-    return "🔉"
-  return "🔊"
+    return Chr(0xE994)
+  return Chr(0xE995)
 }
 
 ShowFlyout() {
@@ -76,13 +84,17 @@ ShowFlyout() {
   FlyoutGui["IconText"].Text := VolIcon(vol)
   FlyoutGui["VolumeBar"].Value := vol
   FlyoutGui["VolText"].Text := vol
-  sw := A_ScreenWidth, sh := A_ScreenHeight
-  bx := sw // 2 - BorderW // 2, by := sh - 120
+  sw := A_ScreenWidth
+  sh := A_ScreenHeight
+  bx := sw // 2 - BorderW // 2
+  by := sh - 110
   BorderGui.Show("NoActivate w" BorderW " h" BorderH " x" bx " y" by)
   RoundCorners(BorderGui, BorderW, BorderH, BorderR)
   FlyoutGui.Show("NoActivate w" FlyoutW " h" FlyoutH " x" (bx + 1) " y" (by + 1))
   RoundCorners(FlyoutGui, FlyoutW, FlyoutH, FlyoutR)
-  SetTimer(HideFlyout, -1500)
+  WinSetAlwaysOnTop(1, BorderGui)
+  WinSetAlwaysOnTop(1, FlyoutGui)
+  SetTimer(HideFlyout, -2500)
 }
 
 HideFlyout(*) {
@@ -90,5 +102,7 @@ HideFlyout(*) {
   BorderGui.Hide()
 }
 
-$Volume_Up::Volume("+2", "Volume_Up")
-$Volume_Down::Volume("-2", "Volume_Down")
+#HotIf IsMouseLocal() && IsDefaultDevice()
+$Volume_Up::Volume(2)
+$Volume_Down::Volume(-2)
+#HotIf

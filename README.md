@@ -1,74 +1,59 @@
-
 # Virtual Surround Sound
 
-Scripts to install and use a virtual 7.1 soundcard on Windows, using the proprietary VAD (Virtual Audio Device) driver from SteelSeries Sonar.
+Scripts to install and use the SteelSeries Sonar virtual 7.1 audio device on Windows.
 
-A virtual 7.1 soundcard is useful when your audio device does not natively support multichannel output. Pair it with [HeSuVi](https://sourceforge.net/p/hesuvi/) for HRTF-based virtual surround sound — the VAD alone provides the 7.1 channels, not the spatial processing.
+Pair the virtual audio device with HeSuVi for HRTF-based virtual surround.
+The VAD provides 7.1 channels, not spatial processing.
 
-## Installation (Easy)
-
-1. Download the latest zip from the [Releases](../../releases) page and extract it.
-2. Run `driver\install.bat` as admin. (This installs the VAD from SteelSeries GG V18.0.0.)
-3. Done. See [Usage](#usage) below.
-
-## Installation (Advanced)
-
-For users who prefer to obtain the binaries themselves:
+## Installation
 
 1. Clone or download this repository.
-2. Download [SoundVolumeView](https://www.nirsoft.net/utils/soundvolumeview-x64.zip) (NirSoft) and place the exe in the repository root.
-3. Download SteelSeries GG [v18.0.0](https://drivers.softpedia.com/get/KEYBOARD-and-MOUSE/Steelseries/SteelSeries-GG-Utility-18-0-0-64-bit.shtml) or [Latest](https://steelseries.com/gg/downloads/gg/latest/windows) (see [version notes](#steelseries-gg-version-differences) for which version to choose).
-4. Open the installer with [7-Zip](https://www.7-zip.org/download.html), extract the `sonar/driver` folder into the repository root.
-5. Run `driver\install.bat` as admin.
+2. Download a [SteelSeries GG](https://steelseries.com/gg/downloads/gg/latest/windows) v14-v25 installer.
+3. Drag the SteelSeries GG installer onto `scripts\vss-driver-extract.bat`.
+4. Run `driver\install.bat` as admin.
+5. Optional, run `tasks\import_tasks.bat` to auto-route on audio device changes.
 
-## Usage
+## Equalizer APO
 
-### Initial setup
+1. Install Equalizer APO.
+2. Open Equalizer APO Configurator.
+3. Tick `SteelSeries Sonar - Gaming`.
+4. Tick `Troubleshooting Options`, select `Install as SFX/MFX`.
+5. Click OK, do not reboot when prompted.
+6. Restart Windows Audio service.
 
-1. Install [EqualizerAPO](https://sourceforge.net/projects/equalizerapo/) if you haven't already.
-2. Open the **Configurator** that ships with EqualizerAPO:
-   - Tick **SteelSeries Sonar - Gaming**.
-   - Tick **Troubleshooting Options** and select **Install as SFX/MFX**.
-   - Click OK. **Do not reboot** when prompted.
-3. Restart the Windows Audio service (HeSuVi can do this: *Actions > Restart Audio Service*).
+## Device Route
 
-### Selecting an output device
+Run `scripts\vss-device-select.bat`.
 
-Run `select_device.bat`. It lists all render devices and lets you pick one by number. The script writes the routing directly to the Sonar APO registry keys and notifies the APO to reload — no need to disable or re-enable the VAD.
+It lists render devices, writes the selected output to Sonar APO registry keys, and launches `scripts\vss-volume-osd.ahk`.
 
-The selected device is also saved to the registry so the volume script can reference it.
+`tasks\import_tasks.bat` imports a `vss-route` scheduled task.
+Task Scheduler points to this repo folder, so do not move or delete the repo after import.
 
-### Volume control (AutoHotKey)
+## Volume OSD
 
-`volume_set.ahk` is an [AutoHotkey v2](https://www.autohotkey.com/) script that provides a minimal volume overlay for the routed output device. It is launched automatically by `select_device.bat`.
+`scripts\vss-volume-osd.ahk` handles `Volume Up` and `Volume Down` and shows volume overlay.
 
-- **Volume Up / Volume Down** keys adjust volume in steps of 2.
-- A dark-themed flyout appears near the bottom of the screen showing the current level.
+Details:
+- only runs when `SteelSeries Sonar - Gaming` is default
+- ignores remote mouse focus from `PowerToys.MouseWithoutBordersHelper.exe`
 
-> **Note:** The script reads the target device from the registry key written by `select_device.bat`. If you haven't run `select_device.bat` at least once, the script will exit with an error.
+## Version Notes
 
-## How device selection works
+| Version | Bit depth | Sample rate | Notes |
+|---|---:|---:|---|
+| 14.0.0-24.0.0 | 16-bit | 48 kHz | Driver in `sonar\driver`. Leaner package. |
+| 25.0.0-27.x | 24-bit | 96 kHz | Driver in `sonar\driver`. Needs render-state and gain keys. |
+| 28.0.0+ | 24-bit | 96 kHz | Driver path changed to `apps\sonar\driver`, extractor supports this layout. |
 
-`select_device.bat` writes the target device GUID directly to the Sonar APO's registry keys and signals it to reload — no SteelSeries GG process needed, no audio glitch. For the full registry layout, polling mechanism, and architecture details, see [docs/sonar-apo-internals.md](docs/sonar-apo-internals.md).
+Recommended: v14-v24.
+Reason: HeSuVi ships 48 kHz HRIR files by default, no sample-rate conversion needed.
 
-## Latency
+## Notes
 
-Measured at **~20-27 ms** using a [loopback cable test](https://support.audacityteam.org/troubleshooting/solving-recording-problems/latency-compensation) in Audacity. No difference was observed between 48 kHz and 96 kHz sample rates.
+Architecture details: `docs\sonar-apo-internals.md`.
 
-Lower latency alternatives like [VB-Audio Cable / Audio Repeater KS](https://sourceforge.net/p/hesuvi/wiki/Help/#71-virtualization) could achieve 7ms but tend to be unstable or produce crackling.
-
-## SteelSeries GG version differences
-
-| Version | Bit depth | Sample rate | Remarks |
-|---|---|---|---|
-| 14.0.0 – 24.0.0 | 16-bit | 48 kHz | Driver in `sonar/driver`. V18.0.0 is the leanest — no bundled ML libraries. |
-| 25.0.0 – 106.1.0 | 24-bit | 96 kHz | Driver path changed to `apps/sonar/driver` from V28.0.0 onward. APO requires render-state and gain keys in addition to redirection keys. Exposes multiple VAD outputs (Gaming at 96KHz, Chat at 48Khz) |
-
-**Recommended:** V14–24 (48 kHz). HeSuVi ships with 48 kHz HRIR files out of the box — no sample-rate conversion needed.
-
-Changelog: [techblog.steelseries.com](https://techblog.steelseries.com/)
-
-## Credits
-
-- **SteelSeries** — Sonar virtual audio device.
-- **NirSoft** — [SoundVolumeView](https://www.nirsoft.net/utils/sound_volume_view.html) for audio device management.
+Credits:
+- SteelSeries, Sonar virtual audio device
+- NirSoft, SoundVolumeView

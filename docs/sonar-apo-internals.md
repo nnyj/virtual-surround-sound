@@ -86,7 +86,7 @@ soundvolumeview /SetDefault "SteelSeries Sonar Virtual Audio Device\...\Render" 
 - APO polls every ~30ms so all writes complete before it reads
 - `reg.exe` cannot access volatile keys, must use .NET `[Microsoft.Win32.Registry]`
 - `SetDefault` (both 0 and 2) ensures Windows routes audio through the Sonar endpoint
-- `kSet_RenderState`, `kSet_StreamRedirectionGainLin`, and `kSet_StreamRedirectionMute` are required for the 96 kHz VAD (V25+) — without them the APO silently drops audio even when redirection is configured correctly
+- `kSet_RenderState`, `kSet_StreamRedirectionGainLin`, and `kSet_StreamRedirectionMute` are required for the 96 kHz VAD (V25+), without them the APO silently drops audio even when redirection is configured correctly
 
 ## Other Sonar Channels
 
