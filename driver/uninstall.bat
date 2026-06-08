@@ -17,4 +17,12 @@ setlocal EnableDelayedExpansion
   pause & exit/b
 )
 
-"%~dp0Sonar.DevInst.exe" remove --device-hwid "ROOT\VEN_SSGG&DEV_0001" --inf "%~dp0vad\SteelSeries-Sonar-VAD-Extension.inf" --inf "%~dp0vad\SteelSeries-Sonar-VAD.inf" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf" --catalog "SteelSeries.Sonar.VAD.cat" --catalog "SteelSeries.Sonar.VAD.Extension.cat" 
+set "device_installer="
+if exist "%~dp0Sonar.DevInst.exe" set "device_installer=%~dp0Sonar.DevInst.exe"
+if not defined device_installer if exist "%~dp0Steelseries.AudioDeviceInstaller.exe" set "device_installer=%~dp0Steelseries.AudioDeviceInstaller.exe"
+if not defined device_installer (
+  echo Device installer not found.
+  pause & exit /b 1
+)
+
+"%device_installer%" remove --device-hwid "ROOT\VEN_SSGG&DEV_0001" --inf "%~dp0vad\SteelSeries-Sonar-VAD-Extension.inf" --inf "%~dp0vad\SteelSeries-Sonar-VAD.inf" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf" --catalog "SteelSeries.Sonar.VAD.cat" --catalog "SteelSeries.Sonar.VAD.Extension.cat" 

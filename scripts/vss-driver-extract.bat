@@ -7,6 +7,7 @@ set "driver_dir=%repo_dir%\driver"
 set "temp_dir=%TEMP%\vss-driver-%RANDOM%"
 set "seven_zip="
 set "source_dir="
+set "device_installer="
 
 if not defined installer (
   set "error_msg=Drag SteelSeries GG installer onto this script."
@@ -26,19 +27,23 @@ if not defined seven_zip (
 )
 
 mkdir "%temp_dir%" >nul 2>nul
-"%seven_zip%" x "%installer%" -o"%temp_dir%" "sonar\driver\*" "apps\sonar\driver\*" -y -bso0 -bsp0
+"%seven_zip%" x "%installer%" -o"%temp_dir%" "sonar\driver\*" "apps\sonar\driver\*" "shared\Steelseries.AudioDeviceInstaller.exe" -y -bso0 -bsp0
 if errorlevel 1 goto fail
 
-@REM GG v14-v27 uses sonar\driver, v28+ uses apps\sonar\driver.
-if exist "%temp_dir%\sonar\driver\Sonar.DevInst.exe" set "source_dir=%temp_dir%\sonar\driver"
-if exist "%temp_dir%\apps\sonar\driver\Sonar.DevInst.exe" set "source_dir=%temp_dir%\apps\sonar\driver"
+@REM GG v14-v27 uses sonar\driver, v28-v111 uses apps\sonar\driver, v112+ moves device installer to shared.
+if exist "%temp_dir%\sonar\driver\apoDriverPackage\Sonar.Apo.inf" set "source_dir=%temp_dir%\sonar\driver"
+if exist "%temp_dir%\apps\sonar\driver\apoDriverPackage\Sonar.Apo.inf" set "source_dir=%temp_dir%\apps\sonar\driver"
 if not defined source_dir goto fail
-if not exist "%source_dir%\apoDriverPackage\Sonar.Apo.inf" goto fail
 if not exist "%source_dir%\vad\SteelSeries-Sonar-VAD.inf" goto fail
+
+if exist "%source_dir%\Sonar.DevInst.exe" set "device_installer=%source_dir%\Sonar.DevInst.exe"
+if not defined device_installer if exist "%temp_dir%\shared\Steelseries.AudioDeviceInstaller.exe" set "device_installer=%temp_dir%\shared\Steelseries.AudioDeviceInstaller.exe"
+if not defined device_installer goto fail
 
 mkdir "%driver_dir%" >nul 2>nul
 attrib -R "%driver_dir%\*" /S /D >nul 2>nul
-copy /Y "%source_dir%\Sonar.DevInst.exe" "%driver_dir%\" >nul || goto fail
+del /Q "%driver_dir%\Sonar.DevInst.exe" "%driver_dir%\Steelseries.AudioDeviceInstaller.exe" >nul 2>nul
+copy /Y "%device_installer%" "%driver_dir%\" >nul || goto fail
 robocopy "%source_dir%\apoDriverPackage" "%driver_dir%\apoDriverPackage" /MIR >nul
 if errorlevel 8 goto fail
 robocopy "%source_dir%\vad" "%driver_dir%\vad" /MIR >nul
@@ -47,16 +52,15 @@ rmdir /s /q "%temp_dir%" >nul 2>nul
 
 echo.
 echo Extracted driver files to "%driver_dir%".
-echo Keep the original SteelSeries installer for license compliance.
 echo.
-pause >nul
+pause
 exit /b 0
 
 :abort
 echo.
 echo %error_msg%
 echo.
-pause >nul
+pause
 exit /b 1
 
 :fail
@@ -64,5 +68,5 @@ echo.
 echo Driver extraction failed.
 echo.
 rmdir /s /q "%temp_dir%" >nul 2>nul
-pause >nul
+pause
 exit /b 1

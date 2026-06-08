@@ -17,8 +17,16 @@ setlocal EnableDelayedExpansion
   pause & exit/b
 )
 
+set "device_installer="
+if exist "%~dp0Sonar.DevInst.exe" set "device_installer=%~dp0Sonar.DevInst.exe"
+if not defined device_installer if exist "%~dp0Steelseries.AudioDeviceInstaller.exe" set "device_installer=%~dp0Steelseries.AudioDeviceInstaller.exe"
+if not defined device_installer (
+  echo Device installer not found.
+  pause & exit /b 1
+)
+
 "%~dp0apoDriverPackage\Sonar.AgsSetup.exe" "Game" "ChatRender" "ChatCapture" "Media" "Aux"
 
-"%~dp0Sonar.DevInst.exe" add --device-hwid "ROOT\VEN_SSGG&DEV_0001" --inf "%~dp0vad\SteelSeries-Sonar-VAD.inf" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf" --inf "%~dp0vad\SteelSeries-Sonar-VAD-Extension.inf"
+"%device_installer%" add --device-hwid "ROOT\VEN_SSGG&DEV_0001" --inf "%~dp0vad\SteelSeries-Sonar-VAD.inf" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf" --inf "%~dp0vad\SteelSeries-Sonar-VAD-Extension.inf"
 
-"%~dp0Sonar.DevInst.exe" register --cat="sonar.apo.cat" --com="Sonar.APO.dll" --com="Sonar.APOAPI.dll" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf"
+"%device_installer%" register --cat="sonar.apo.cat" --com="Sonar.APO.dll" --com="Sonar.APOAPI.dll" --inf "%~dp0apoDriverPackage\Sonar.Apo.inf"
