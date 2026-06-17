@@ -17,8 +17,10 @@ The VAD provides 7.1 channels, not spatial processing.
 
 ## Equalizer APO
 
+![Equalizer APO Device Selector](docs/eq-apo-device-selector.png)
+
 1. Install Equalizer APO.
-2. Open Equalizer APO Configurator.
+2. Open Equalizer APO Device Selector.
 3. Tick `SteelSeries Sonar - Gaming`.
 4. Tick `Troubleshooting Options`, select `Install as SFX/MFX`.
 5. Click OK, do not reboot when prompted.
