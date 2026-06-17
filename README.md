@@ -35,6 +35,8 @@ Task Scheduler points to this repo folder, so do not move or delete the repo aft
 
 ## Volume OSD
 
+![Volume OSD](docs/volume-osd.png)
+
 `scripts\vss-volume-osd.ahk` handles `Volume Up` and `Volume Down` and shows volume overlay.
 
 Details:
