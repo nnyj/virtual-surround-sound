@@ -1,11 +1,20 @@
 # Virtual Surround Sound
 
-Scripts to install and use the SteelSeries Sonar virtual 7.1 audio device on Windows.
+<img src="docs/volume-osd-icon.png" width="80" align="right">
+
+Scripts to install and use the SteelSeries Sonar virtual 7.1 audio device on Windows 10 and Windows 11.
 
 Pair the virtual audio device with HeSuVi for HRTF-based virtual surround.
 The VAD provides 7.1 channels, not spatial processing.
 
-## Installation
+## Prerequisites
+
+- Windows 10 or Windows 11
+- [Equalizer APO](https://sourceforge.net/projects/equalizerapo/)
+- [AutoHotkey v2](https://www.autohotkey.com/) (for volume OSD and device switching)
+- [HeSuVi](https://sourceforge.net/projects/hesuvi/) (optional, for HRTF virtual surround)
+
+## Step 1: Install Driver
 
 1. Clone or download this repository.
 2. Download a SteelSeries GG installer:
@@ -13,9 +22,8 @@ The VAD provides 7.1 channels, not spatial processing.
   - [Latest](https://steelseries.com/gg/downloads/gg/latest/windows) - 96kHz only
 3. Drag the SteelSeries GG installer onto `scripts\vss-driver-extract.bat`.
 4. Run `driver\install.bat` as admin.
-5. Optional, run `tasks\import_tasks.bat` to auto-route on audio device changes.
 
-## Equalizer APO
+## Step 2: Equalizer APO
 
 ![Equalizer APO Device Selector](docs/eq-apo-device-selector.png)
 
@@ -26,24 +34,28 @@ The VAD provides 7.1 channels, not spatial processing.
 5. Click OK, do not reboot when prompted.
 6. Restart Windows Audio service.
 
-## Device Route
+## Step 3: Route Audio
 
-Run `scripts\vss-device-select.bat`.
+Route audio through the Sonar VAD to a physical output device.
 
-It lists render devices, writes the selected output to Sonar APO registry keys, and launches `scripts\vss-volume-osd.ahk`.
+Option A: run `scripts\vss-volume-osd.ahk`, click the tray icon to select a device.
 
-`tasks\import_tasks.bat` imports a `vss-route` scheduled task.
+Option B: run `scripts\vss-device-select.bat` for a console-based device picker.
+
+Optional: run `tasks\import_tasks.bat` to auto-route on audio device changes.
 Task Scheduler points to this repo folder, so do not move or delete the repo after import.
 
 ## Volume OSD
 
-![Volume OSD](docs/volume-osd.png)
+![Volume OSD](docs/volume-osd-overlay.png)
 
-`scripts\vss-volume-osd.ahk` handles `Volume Up` and `Volume Down` and shows volume overlay.
+`scripts\vss-volume-osd.ahk` handles `Volume Up`/`Volume Down` and shows a volume overlay with the active device name.
 
-Details:
-- only runs when `SteelSeries Sonar - Gaming` is default
-- ignores remote mouse focus from `PowerToys.MouseWithoutBordersHelper.exe`
+![Tray Menu](docs/volume-osd-tray-menu.png)
+Click the tray icon to switch output device or toggle the device OSD.
+
+- Only active when `SteelSeries Sonar - Gaming` is the default device
+- Ignores remote mouse focus from `PowerToys.MouseWithoutBordersHelper.exe`
 
 ## Version Notes
 
