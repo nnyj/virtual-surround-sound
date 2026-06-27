@@ -2,10 +2,12 @@
 #SingleInstance Force
 SendMode("Input")
 SetWorkingDir(A_ScriptDir)
+CoordMode("Mouse", "Screen")
+CoordMode("Menu", "Screen")
 
 ShowTrayIcon := true
 AlwaysShowDevice := true
-TrayPNG := "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAACGklEQVR4nMVUO2gUURQ9d94QkUUXjMVqVjSN4KcQU2ghWIpN1OgEP5WKFn4QsRNkFkEIBAvRrESjhYWFwU0Esbaw1UZEWDEBM2yEmBARo/uZd+RN3phRd5dVFjxwYXifc869c98F/gdIOibaQSQkVZMD4vstCiWJSO4kedkKSD1i1ElJJSJSJbmS5DWSIckXsVDkipSDt6Z2ePlSj1n3fb+5U5L9JN9xCU+XnC868obfp/vypYHDN2fWRi5Jce2hbQC6AGgAHQBOAOi13GW7FpXgOWDJSrtrobwVyJ2KKh+DyKDnPVKxzRwA4+AZgHFLpm0Y0Z81Kr4030JdrX4S8lThTGbCrB+4MZUdHe0PY8IFAKF1E9owe3/UpTj7sePQUHD88bn1bwB9zbv7YZVovHKV2orEBcemlIy6uL5nzVcCnd7wXFoERVTdbsdBUEOtM0n4VzDlryx8Fk1SOxAnBGMLMaFOpBpHXVx6MJ0CZf7Jxe55h9gYVvWkVirrUOaShCmb5rJEyvFP+QVHNmcqhbNd9/YPTW6io1Lj57OzmuF27S5/bfajtgFwFcD9RNucBLDX7pWTpfnSAy46cTNKq5F9t6c3gDU1dnp1YNqmcZ3IoyQnmjV278jMir58MGBaJm5sp9HTE5GHAMyzGrQa6VjM9xFdVpXvW5TowtiFdQFyOYEIWx0Ou0heaXk4oDFp+8bXb8TtGbD/gh9cyUib05szAgAAAABJRU5ErkJggg=="
+SndVolDll := A_WinDir "\System32\SndVolSSO.dll"
 
 RegKey := "HKCU\SOFTWARE\SteelSeries ApS\Sonar.APO\AHK"
 SoundCli := A_ScriptDir "\..\tools\soundvolumeview.exe"
@@ -40,6 +42,8 @@ Volume(Offset) {
   dev := GetDevice()
   try {
     SoundSetVolume Format("{:+d}", Offset), , dev
+    vol := Round(SoundGetVolume(, dev))
+    UpdateTrayIcon(vol)
     if AlwaysShowDevice
       ShowDeviceOsd(dev)
     else
@@ -59,12 +63,9 @@ EnumerateDevices() {
     FileDelete(tmpFile)
   } catch
     return devices
-  first := true
   loop parse output, "`n", "`r" {
-    if first {
-      first := false
+    if A_Index = 1
       continue
-    }
     if !A_LoopField
       continue
     parts := StrSplit(A_LoopField, ",")
@@ -272,25 +273,54 @@ ShowDeviceOsd(name) {
 
 ; --- Startup ---
 
-Base64PNG_to_HICON(b64, W:=0, H:=0) {
-  Local BLen := StrLen(b64), nBytes := Floor(StrLen(RTrim(b64, "=")) * 3/4), Bin := Buffer(nBytes)
-  Return DllCall("Crypt32\CryptStringToBinary", "str",b64, "uint",BLen, "uint",1, "ptr",Bin
-    , "uintp",nBytes, "uint",0, "uint",0)
-    ? DllCall("User32\CreateIconFromResourceEx", "ptr",Bin, "uint",nBytes, "int",True
-      , "uint",0x30000, "int",W, "int",H, "uint",0, "uptr")
-    : 0
+UpdateTrayIcon(vol) {
+  global SndVolDll
+  static hMod := DllCall("LoadLibraryEx", "Str", SndVolDll, "Ptr", 0, "UInt", 0x02, "Ptr")
+  resId := vol <= 0 ? 120 : vol <= 33 ? 122 : vol <= 66 ? 123 : 124
+  hIcon := DllCall("LoadImage", "Ptr", hMod, "Ptr", resId, "UInt", 1, "Int", 16, "Int", 16, "UInt", 0, "Ptr")
+  if hIcon
+    TraySetIcon("HICON:" hIcon)
+}
+
+ShowTrayMenu() {
+  MouseGetPos(&mx, &my)
+  rect := Buffer(16, 0)
+  DllCall("SystemParametersInfo", "UInt", 0x0030, "UInt", 0, "Ptr", rect, "UInt", 0)
+  mx := Max(NumGet(rect, 0, "Int"), Min(mx, NumGet(rect, 8, "Int")))
+  my := Max(NumGet(rect, 4, "Int"), Min(my, NumGet(rect, 12, "Int")))
+  DllCall("SetForegroundWindow", "Ptr", A_ScriptHwnd)
+  A_TrayMenu.Show(mx, my)
+  DllCall("PostMessage", "Ptr", A_ScriptHwnd, "UInt", 0, "Ptr", 0, "Ptr", 0)
+}
+
+MouseOnIcon := false
+
+CheckIconHover() {
+  global MouseOnIcon
+  MouseGetPos(, , &win)
+  try
+    if WinGetClass("ahk_id " win) ~= "^(Shell_TrayWnd|Shell_SecondaryTrayWnd|NotifyIconOverflowWindow)$"
+      return
+  MouseOnIcon := false
+  SetTimer(CheckIconHover, 0)
 }
 
 OnTrayClick(wParam, lParam, msg, hwnd) {
-  if lParam = 0x202
-    A_TrayMenu.Show()
+  global MouseOnIcon
+  if lParam = 0x202 || lParam = 0x205 {
+    ShowTrayMenu()
+    return 1
+  } else if lParam = 0x200 && !MouseOnIcon {
+    MouseOnIcon := true
+    SetTimer(CheckIconHover, 100)
+  }
 }
 OnMessage(0x404, OnTrayClick)
 
 if !ShowTrayIcon
   A_IconHidden := true
 else {
-  TraySetIcon("HICON:" Base64PNG_to_HICON(TrayPNG))
+  try UpdateTrayIcon(Round(SoundGetVolume(, GetDevice())))
   BuildTrayMenu()
 }
 
@@ -300,4 +330,9 @@ if AudioDevice != ""
 #HotIf IsMouseLocal() && IsDefaultDevice()
 $Volume_Up::Volume(2)
 $Volume_Down::Volume(-2)
+#HotIf
+
+#HotIf MouseOnIcon && IsDefaultDevice()
+WheelUp::Volume(2)
+WheelDown::Volume(-2)
 #HotIf

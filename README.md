@@ -52,8 +52,9 @@ Task Scheduler points to this repo folder, so do not move or delete the repo aft
 `scripts\vss-volume-osd.ahk` handles `Volume Up`/`Volume Down` and shows a volume overlay with the active device name.
 
 ![Tray Menu](docs/volume-osd-tray-menu.png)
-Click the tray icon to switch output device or toggle the device OSD.
+Click or right-click the tray icon to switch output device or toggle the device OSD.
 
+- Scroll on the tray icon to adjust volume
 - Only active when `SteelSeries Sonar - Gaming` is the default device
 - Ignores remote mouse focus from `PowerToys.MouseWithoutBordersHelper.exe`
 
