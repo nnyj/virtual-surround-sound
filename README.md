@@ -12,7 +12,6 @@ The VAD provides 7.1 channels, not spatial processing.
 - Windows 10 or Windows 11
 - [Equalizer APO](https://sourceforge.net/projects/equalizerapo/)
 - [AutoHotkey v2](https://www.autohotkey.com/) (for volume OSD and device switching)
-- [HeSuVi](https://sourceforge.net/projects/hesuvi/) (optional, for HRTF virtual surround)
 
 ## Step 1: Install Driver
 
@@ -23,7 +22,18 @@ The VAD provides 7.1 channels, not spatial processing.
 3. Drag the SteelSeries GG installer onto `scripts\vss-driver-extract.bat`.
 4. Run `driver\install.bat` as admin.
 
-## Step 2: Equalizer APO
+## Step 2: Route Audio
+
+Route audio through the Sonar VAD to a physical output device.
+
+Option A: run `scripts\vss-volume-osd.ahk`, click the tray icon to select a device.
+
+Option B: run `scripts\vss-device-select.bat` for a console-based device picker.
+
+Optional: run `tasks\import_tasks.bat` to auto-route on audio device changes.
+Task Scheduler points to this repo folder, so do not move or delete the repo after import.
+
+## Step 3: Equalizer APO (optional)
 
 ![Equalizer APO Device Selector](docs/eq-apo-device-selector.png)
 
@@ -34,16 +44,10 @@ The VAD provides 7.1 channels, not spatial processing.
 5. Click OK, do not reboot when prompted.
 6. Restart Windows Audio service.
 
-## Step 3: Route Audio
+## Step 4: HeSuVi (optional)
 
-Route audio through the Sonar VAD to a physical output device.
-
-Option A: run `scripts\vss-volume-osd.ahk`, click the tray icon to select a device.
-
-Option B: run `scripts\vss-device-select.bat` for a console-based device picker.
-
-Optional: run `tasks\import_tasks.bat` to auto-route on audio device changes.
-Task Scheduler points to this repo folder, so do not move or delete the repo after import.
+Install [HeSuVi](https://sourceforge.net/projects/hesuvi/) for HRTF-based virtual surround processing.
+Requires Equalizer APO (Step 3).
 
 ## Volume OSD
 
