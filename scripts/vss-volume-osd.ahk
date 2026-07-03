@@ -56,7 +56,10 @@ Volume(Offset) {
 EnumerateDevices() {
   global SoundCli, SonarFilter
   devices := []
-  tmpFile := A_Temp "\vss_devices.csv"
+  ; unique per process: SingleInstance Force kills old script but not its soundvolumeview child, which may still hold shared file
+  tmpFile := A_Temp "\vss_devices_" DllCall("GetCurrentProcessId") ".csv"
+  loop files A_Temp "\vss_devices*.csv"
+    try FileDelete(A_LoopFileFullPath)
   try {
     RunWait('"' SoundCli '" /scomma "' tmpFile '" /Columns "Name,Type,Direction,DeviceName,ItemID"', , "Hide")
     output := FileRead(tmpFile)
