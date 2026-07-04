@@ -325,6 +325,8 @@ if !ShowTrayIcon
 else {
   try UpdateTrayIcon(Round(SoundGetVolume(, GetDevice())))
   BuildTrayMenu()
+  ; WM_DEVICECHANGE: rebuild device menu, debounced (same func = timer reset)
+  OnMessage(0x219, (*) => SetTimer(BuildTrayMenu, -2000))
 }
 
 if AudioDevice != ""
