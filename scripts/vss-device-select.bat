@@ -2,9 +2,11 @@
 setlocal EnableDelayedExpansion
 
 @REM Dry-run: vss-device-select.bat auto "" "" "" dry-run
-set "sound_cli=%~dp0..\tools\soundvolumeview.exe"
+set "sound_cli=soundvolumeview.exe"
 set "defaultTarget=Speakers: High Definition Audio Device"
-set "ahkKey=HKCU\SOFTWARE\SteelSeries ApS\Sonar.APO\AHK"
+set "ahkKey=HKCU\SOFTWARE\VirtualSurroundSound\AHK"
+set "cableFilter=VB-Audio Virtual Cable"
+set "cableRender=VB-Audio Virtual Cable\Device\CABLE Input\Render"
 set "mode=%~1"
 set "eventState=%~3"
 set "eventId=%~4"
@@ -48,13 +50,12 @@ echo No matching render device found.
 exit /b 1
 
 :scan_render_devices
-@REM Scan selectable render endpoints from SoundVolumeView.
+@REM Scan selectable render endpoints from SoundVolumeView, excluding the virtual cable itself.
 set "deviceid="
 set "scanAction=%~1"
 set "scanTarget=%~2"
-@REM SoundVolumeView exports CSV to stdout only when piped.
 for /f "tokens=1,2,3,4,5 delims=, skip=1" %%a in ('^""%sound_cli%" /scomma "" /Columns "Name,Type,Direction,DeviceName,ItemID" ^| more^"') do (
-  if "%%b:%%c"=="Device:Render" if not "%%d"=="SteelSeries Sonar Virtual Audio Device" (
+  if "%%b:%%c"=="Device:Render" if not "%%d"=="%cableFilter%" (
     if /I "!scanAction!"=="list" (
       set /A i+=1
       echo !i!. %%a: %%d
@@ -83,46 +84,26 @@ exit /b
 echo.
 echo Selected        : %name%: %deviceName%
 echo Device ID       : %deviceid%
-
-@REM Sonar stores endpoint ID as UTF-16LE hex plus null terminator count.
-for /f "tokens=1,2" %%h in ('powershell -NoProfile -Command "$id='%deviceid%'; $b=[System.Text.Encoding]::Unicode.GetBytes($id+[char]0); $hex=-join($b|ForEach-Object{'{0:X2}'-f$_}); Write-Output ($hex+' '+($id.Length+1))"') do (
-  set "StreamRedirectionDeviceId=%%h"
-  set "StreamRedirectionDeviceIdCount=%%i"
-)
-echo Final Hex Output: %StreamRedirectionDeviceId%
 if /I "%dryRun%"=="dry-run" exit /b 0
 
-@REM Route audio to desired device (GlobalControl for persistence, Streams for live APO)
-set "apoBase=SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings"
-@REM GlobalControl persists route across restarts; admin required, live route below is main path.
-set "persistStore=HKLM\%apoBase%\GlobalControl\Store"
-set "saveFailed="
-reg add "%persistStore%" /v kSet_StreamRedirectionState /t REG_DWORD /d 1 /f >nul 2>nul || set "saveFailed=1"
-if not defined saveFailed (
-  reg add "%persistStore%" /v kSet_StreamRedirectionDeviceIdCount /t REG_DWORD /d %StreamRedirectionDeviceIdCount% /f >nul
-  reg add "%persistStore%" /v kSet_StreamRedirectionDeviceId /t REG_BINARY /d %StreamRedirectionDeviceId% /f >nul
-  reg add "%persistStore%" /v kSet_RenderState /t REG_DWORD /d 1 /f >nul
-  reg add "%persistStore%" /v kSet_StreamRedirectionGainLin /t REG_DWORD /d 1065353216 /f >nul
-  reg add "%persistStore%" /v kSet_StreamRedirectionMute /t REG_DWORD /d 0 /f >nul
-)
-if defined saveFailed echo Note: To save this choice permanently, re-run script as admin.
-
-@REM Live Sonar streams are volatile registry keys; .NET API can update binary values in-place.
+@REM vss_apo.dll watches TargetDeviceId (RegNotifyChangeKeyValue) and re-points its sink live.
+@REM Plain reg add requests KEY_WRITE and gets denied for non-admin; .NET open with exact rights works
+@REM (install.ps1 grants Users QueryValues+SetValue on the key).
 powershell -NoProfile -Command ^
-  "$hklm=[Microsoft.Win32.Registry]::LocalMachine;" ^
-  "$hex='%StreamRedirectionDeviceId%';" ^
-  "[byte[]]$bytes=for($i=0;$i -lt $hex.Length;$i+=2){[convert]::ToByte($hex.Substring($i,2),16)};" ^
-  "if($root=$hklm.OpenSubKey('%apoBase%\Streams')){" ^
-  "  $root.GetSubKeyNames()|ForEach-Object{" ^
-  "    if($key=$hklm.OpenSubKey('%apoBase%\Streams\'+$_,$true)){" ^
-  "      $key.SetValue('ModifiedRender',[byte[]](@(0xFF)*28),'Binary');" ^
-  "      $key.SetValue('kSet_StreamRedirectionDeviceId',$bytes,'Binary');" ^
-  "      @{kSet_StreamRedirectionState=1;kSet_StreamRedirectionDeviceIdCount=%StreamRedirectionDeviceIdCount%;kSet_RenderState=1;kSet_StreamRedirectionGainLin=1065353216;kSet_StreamRedirectionMute=0}.GetEnumerator()|ForEach-Object{$key.SetValue($_.Key,$_.Value,'DWord')};" ^
-  "      $key.Close()}};$root.Close()}"
-set "sonarRender=SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"
-"%sound_cli%" /Enable "%sonarRender%"
-"%sound_cli%" /SetDefault "%sonarRender%" 0
-"%sound_cli%" /SetDefault "%sonarRender%" 2
+  "$k=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\VirtualSurroundSound'," ^
+  "[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree," ^
+  "[System.Security.AccessControl.RegistryRights]::QueryValues -bor [System.Security.AccessControl.RegistryRights]::SetValue);" ^
+  "$k.SetValue('TargetDeviceId','%deviceid%','String');$k.Close()"
+if errorlevel 1 (
+  echo Failed to write TargetDeviceId. Run apo\install.ps1 as admin once to grant Users write access.
+  exit /b 1
+)
+
+@REM Keep cable as default so apps feed the virtual surround chain
+"%sound_cli%" /Enable "%cableRender%"
+"%sound_cli%" /SetDefault "%cableRender%" 0
+"%sound_cli%" /SetDefault "%cableRender%" 1
+"%sound_cli%" /SetDefault "%cableRender%" 2
 
 @REM Store audio device in registry for AHK
 if "%eventState%"=="1" if /I "%deviceid%"=="%eventId%" (
@@ -133,7 +114,6 @@ if "%eventState%"=="1" if /I "%deviceid%"=="%eventId%" (
     reg add "%ahkKey%" /v PreviousAudioDeviceId /t REG_SZ /d "!previousDeviceId!" /f >nul
   )
 )
+@REM vss-volume-osd.ahk polls these values (WatchDevice), no relaunch needed
 reg add "%ahkKey%" /v AudioDevice /t REG_SZ /d "%name% (%deviceName%)" /f >nul
 reg add "%ahkKey%" /v AudioDeviceId /t REG_SZ /d "%deviceid%" /f >nul
-
-start "" "%~dp0vss-volume-osd.ahk"

@@ -102,3 +102,19 @@ Each has its own `GlobalControl\Store\`, `Streams\`, and `NotificationClients\`.
 - `soundvolumeview.exe` (NirSoft) for enumerating devices and setting defaults
 - PowerShell with .NET (`[Microsoft.Win32.Registry]`) for volatile key access
 - `reg.exe` for `GlobalControl\Store` (persistent keys) only
+
+## Driver Sourcing (historical)
+
+The repo previously extracted the Sonar VAD from SteelSeries GG installers (`vss-driver-extract.bat` + `driver\install.bat`, see git history):
+
+- [v14-v24 installer](https://drivers.softpedia.com/get/KEYBOARD-and-MOUSE/Steelseries/SteelSeries-GG-Utility-18-0-0-64-bit.shtml) - recommended for 48kHz support
+- [Latest installer](https://steelseries.com/gg/downloads/gg/latest/windows) - 96kHz only
+
+| Version        | Bit depth | Sample rate | Notes                                                                    |
+| -------------- | --------: | ----------: | ------------------------------------------------------------------------ |
+| 14.0.0-24.0.0  |    16-bit |      48 kHz | Driver in `sonar\driver`. Leaner package.                                |
+| 25.0.0-27.x    |    24-bit |      96 kHz | Driver in `sonar\driver`. Needs render-state and gain keys.              |
+| 28.0.0-111.0.0 |    24-bit |      96 kHz | Driver path changed to `apps\sonar\driver`.                              |
+| 112.0.0+       |    24-bit |      96 kHz | Device installer moved to `shared\Steelseries.AudioDeviceInstaller.exe`. |
+
+Recommended: v14-v24, HeSuVi ships 48 kHz HRIR files by default, no sample-rate conversion needed.

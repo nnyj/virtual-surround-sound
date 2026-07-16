@@ -2,52 +2,47 @@
 
 <img src="docs/volume-osd-icon.png" width="80" align="right">
 
-Scripts to install and use the SteelSeries Sonar virtual 7.1 audio device on Windows 10 and Windows 11.
+Custom Windows APO that turns a VB-Cable virtual 7.1 endpoint into a headphone surround stack: apps play to the cable, HeSuVi (Equalizer APO) convolves 7.1 to binaural, and `vss_apo.dll` forwards the result to any physical output from inside the audio engine (~10ms added latency). Device switching is live, no audio restart.
 
-Pair the virtual audio device with HeSuVi for HRTF-based virtual surround.
-The VAD provides 7.1 channels, not spatial processing.
+Replaces the SteelSeries Sonar dependency this repo previously wrapped, no GG software needed.
+
+## How it works
+
+```
+apps (7.1) -> CABLE Input (default device)
+           -> EAPO SFX (pre-mix)
+           -> EAPO MFX (HeSuVi 7.1 -> binaural)
+           -> vss forwarder MFX -> physical device (WASAPI)
+```
+
+- forwarder passes audio through untouched and mirrors it to the target device via a lock-free ring + render thread
+- target lives in `HKLM\SOFTWARE\VirtualSurroundSound\TargetDeviceId`, watched live by the APO
+- plumbing details and Windows APO registration rules: [docs/apo-forwarder-internals.md](docs/apo-forwarder-internals.md)
 
 ## Prerequisites
 
-- Windows 10 or Windows 11
-- [Equalizer APO](https://sourceforge.net/projects/equalizerapo/)
-- [AutoHotkey v2](https://www.autohotkey.com/) (for volume OSD and device switching)
+- Windows 10/11
+- [VB-Cable](https://vb-audio.com/Cable/) Pack45 or newer (older 2014-era driver blocks all endpoint effects)
+- [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) + [HeSuVi](https://sourceforge.net/projects/hesuvi/)
+- [AutoHotkey v2](https://www.autohotkey.com/) (volume OSD and device switching)
 
-## Step 1: Install Driver
+## Install
 
-1. Clone or download this repository.
-2. Download a SteelSeries GG installer:
-  - [v14-v24](https://drivers.softpedia.com/get/KEYBOARD-and-MOUSE/Steelseries/SteelSeries-GG-Utility-18-0-0-64-bit.shtml) - Recommended for 48kHz support
-  - [Latest](https://steelseries.com/gg/downloads/gg/latest/windows) - 96kHz only
-3. Drag the SteelSeries GG installer onto `scripts\vss-driver-extract.bat`.
-4. Run `driver\install.bat` as admin.
+1. Install VB-Cable, Equalizer APO (tick `CABLE Input` in its device selector), HeSuVi.
+2. Download the [latest release](../../releases) (bundles `vss_apo.dll`), run `apo\install.bat` (admin). Registers the APO, deploys to Program Files, sets the composite FX chain on CABLE Input.
+3. Set CABLE Input to 7.1 if not already (check speaker setup in mmsys.cpl).
+4. Pick output device: `scripts\vss-device-select.bat`.
+5. Optional: `tasks\import_tasks.bat` auto-routes on device plug/unplug. Task Scheduler points to this repo folder, do not move it after import.
 
-## Step 2: Route Audio
+Uninstall: `apo\uninstall.bat`.
 
-Route audio through the Sonar VAD to a physical output device.
+Building from source (optional, needs VS Build Tools 2022): `apo\build.bat`. Release zips place the dll at `apo\build\vss_apo.dll`, where `install.ps1` expects it.
 
-Option A: run `scripts\vss-volume-osd.ahk`, click the tray icon to select a device.
+### Equalizer APO + HeSuVi notes
 
-Option B: run `scripts\vss-device-select.bat` for a console-based device picker.
-
-Optional: run `tasks\import_tasks.bat` to auto-route on audio device changes.
-Task Scheduler points to this repo folder, so do not move or delete the repo after import.
-
-## Step 3: Equalizer APO (optional)
-
-![Equalizer APO Device Selector](docs/eq-apo-device-selector.png)
-
-1. Install Equalizer APO.
-2. Open Equalizer APO Device Selector.
-3. Tick `SteelSeries Sonar - Gaming`.
-4. Tick `Troubleshooting Options`, select `Install as SFX/MFX`.
-5. Click OK, do not reboot when prompted.
-6. Restart Windows Audio service.
-
-## Step 4: HeSuVi (optional)
-
-Install [HeSuVi](https://sourceforge.net/projects/hesuvi/) for HRTF-based virtual surround processing.
-Requires Equalizer APO (Step 3).
+- EAPO device selector: ticking `CABLE Input` just registers the EAPO dll, slot mode does not matter, `apo\install.ps1` writes the final chain. Rerunning the selector on `CABLE Input` overwrites that chain, rerun `apo\install.ps1` after
+- HeSuVi: pick an HRIR on the Virtualization tab. If virtualization seems off, recheck `On/Off`, `Auto-Deactivate for 2 OS Channels` latches it off when the cable was ever 2-channel
+- verify: `debug\tone_channels.ps1` sweeps all 8 channels, rears should sound behind you
 
 ## Volume OSD
 
@@ -56,28 +51,22 @@ Requires Equalizer APO (Step 3).
 `scripts\vss-volume-osd.ahk` handles `Volume Up`/`Volume Down` and shows a volume overlay with the active device name.
 
 ![Tray Menu](docs/volume-osd-tray-menu.png)
-Click or right-click the tray icon to switch output device or toggle the device OSD.
+
+Click or right-click the tray icon to switch output device or toggle the device OSD. Switching writes `TargetDeviceId`, the APO re-points its sink mid-stream.
 
 - Scroll on the tray icon to adjust volume
-- Only active when `SteelSeries Sonar - Gaming` is the default device
+- Only active when `CABLE Input` is the default device
 - Ignores remote mouse focus from `PowerToys.MouseWithoutBordersHelper.exe`
 
-## Version Notes
+## Repo layout
 
-| Version | Bit depth | Sample rate | Notes |
-|---|---:|---:|---|
-| 14.0.0-24.0.0 | 16-bit | 48 kHz | Driver in `sonar\driver`. Leaner package. |
-| 25.0.0-27.x | 24-bit | 96 kHz | Driver in `sonar\driver`. Needs render-state and gain keys. |
-| 28.0.0-111.0.0 | 24-bit | 96 kHz | Driver path changed to `apps\sonar\driver`. |
-| 112.0.0+ | 24-bit | 96 kHz | Device installer moved to `shared\Steelseries.AudioDeviceInstaller.exe`. |
-
-Recommended: v14-v24.
-Reason: HeSuVi ships 48 kHz HRIR files by default, no sample-rate conversion needed.
-
-## Notes
-
-Architecture details: `docs\sonar-apo-internals.md`.
+- `apo/` - APO source, build, install/uninstall
+- `scripts/` - device picker (console) + volume OSD (AutoHotkey)
+- `tasks/` - Task Scheduler auto-route on device changes
+- `debug/` - diagnostic tools (direct-endpoint tone player, meters, FX slot dump, 7.1 format switch)
+- `docs/` - forwarder internals, historical Sonar.APO analysis
+- `tools/` - SoundVolumeView (see NIRSOFT_NOTICE.txt)
 
 Credits:
-- SteelSeries, Sonar virtual audio device
 - NirSoft, SoundVolumeView
+- SteelSeries Sonar, forwarding mechanism blueprint ([docs/sonar-apo-internals.md](docs/sonar-apo-internals.md))

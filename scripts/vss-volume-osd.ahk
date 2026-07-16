@@ -7,28 +7,32 @@ CoordMode("Menu", "Screen")
 
 ShowTrayIcon := true
 AlwaysShowDevice := true
-SndVolDll := A_WinDir "\System32\SndVolSSO.dll"
 
-RegKey := "HKCU\SOFTWARE\SteelSeries ApS\Sonar.APO\AHK"
+RegKey := "HKCU\SOFTWARE\VirtualSurroundSound\AHK"
 SoundCli := A_ScriptDir "\..\tools\soundvolumeview.exe"
 if !FileExist(SoundCli)
   SoundCli := "soundvolumeview.exe"
-SonarFilter := "SteelSeries Sonar Virtual Audio Device"
-ApoBase := "SOFTWARE\SteelSeries ApS\Sonar.APO\Game\Settings"
-SonarRender := "SteelSeries Sonar Virtual Audio Device\Device\SteelSeries Sonar - Gaming\Render"
+CableFilter := "VB-Audio Virtual Cable"
+CableRender := "VB-Audio Virtual Cable\Device\CABLE Input\Render"
 
 AudioDevice := ""
 try AudioDevice := RegRead(RegKey, "AudioDevice")
 
 IsDefaultDevice() {
-  return InStr(SoundGetName(), "SteelSeries Sonar - Gaming")
+  return InStr(SoundGetName(), "CABLE Input")
 }
 
 GetDevice() {
-  global AudioDevice, RegKey
+  global AudioDevice
   try
     AudioDevice := RegRead(RegKey, "AudioDevice")
   return AudioDevice
+}
+
+GetVolPercent() {
+  try return Round(SoundGetVolume(, GetDevice()))
+  try return Round(SoundGetVolume())
+  return 0
 }
 
 IsMouseLocal() {
@@ -42,8 +46,7 @@ Volume(Offset) {
   dev := GetDevice()
   try {
     SoundSetVolume Format("{:+d}", Offset), , dev
-    vol := Round(SoundGetVolume(, dev))
-    UpdateTrayIcon(vol)
+    UpdateTrayIcon(Round(SoundGetVolume(, dev)))
     if AlwaysShowDevice
       ShowDeviceOsd(dev)
     else
@@ -54,7 +57,6 @@ Volume(Offset) {
 ; --- Device management ---
 
 EnumerateDevices() {
-  global SoundCli, SonarFilter
   devices := []
   ; unique per process: SingleInstance Force kills old script but not its soundvolumeview child, which may still hold shared file
   tmpFile := A_Temp "\vss_devices_" DllCall("GetCurrentProcessId") ".csv"
@@ -74,56 +76,26 @@ EnumerateDevices() {
     parts := StrSplit(A_LoopField, ",")
     if parts.Length < 5
       continue
-    if parts[2] = "Device" && parts[3] = "Render" && parts[4] != SonarFilter
+    if parts[2] = "Device" && parts[3] = "Render" && parts[4] != CableFilter
       devices.Push({name: parts[1], deviceName: parts[4], id: parts[5], label: parts[1] " (" parts[4] ")"})
   }
   return devices
 }
 
-DeviceIdToHex(id) {
-  charCount := StrLen(id) + 1
-  byteCount := charCount * 2
-  buf := Buffer(byteCount, 0)
-  StrPut(id, buf, charCount, "UTF-16")
-  hex := ""
-  loop byteCount
-    hex .= Format("{:02X}", NumGet(buf, A_Index - 1, "UChar"))
-  return {hex: hex, count: charCount}
-}
-
 RouteDevice(name, deviceName, deviceId) {
-  global ApoBase, SonarRender, SoundCli, RegKey
-
-  result := DeviceIdToHex(deviceId)
-  hex := result.hex, count := result.count
-  persistStore := "HKLM\" ApoBase "\GlobalControl\Store"
-
-  RunWait(A_ComSpec ' /c '
-    . 'reg add "' persistStore '" /v kSet_StreamRedirectionState /t REG_DWORD /d 1 /f >nul 2>nul'
-    . ' & reg add "' persistStore '" /v kSet_StreamRedirectionDeviceIdCount /t REG_DWORD /d ' count ' /f >nul 2>nul'
-    . ' & reg add "' persistStore '" /v kSet_StreamRedirectionDeviceId /t REG_BINARY /d ' hex ' /f >nul 2>nul'
-    . ' & reg add "' persistStore '" /v kSet_RenderState /t REG_DWORD /d 1 /f >nul 2>nul'
-    . ' & reg add "' persistStore '" /v kSet_StreamRedirectionGainLin /t REG_DWORD /d 1065353216 /f >nul 2>nul'
-    . ' & reg add "' persistStore '" /v kSet_StreamRedirectionMute /t REG_DWORD /d 0 /f >nul 2>nul'
-    , , "Hide")
-
-  streamsPath := ApoBase "\Streams"
+  ; vss_apo.dll watches TargetDeviceId (RegNotifyChangeKeyValue) and re-points its sink live.
+  ; reg add requests KEY_WRITE and gets denied for non-admin; .NET open with exact rights works
+  ; (apo\install.ps1 grants Users QueryValues+SetValue on the key).
   RunWait('powershell -NoProfile -Command "'
-    . "$hklm=[Microsoft.Win32.Registry]::LocalMachine;"
-    . "$hex='" hex "';"
-    . "[byte[]]$bytes=for($i=0;$i -lt $hex.Length;$i+=2){[convert]::ToByte($hex.Substring($i,2),16)};"
-    . "if($root=$hklm.OpenSubKey('" streamsPath "')){"
-    . "$root.GetSubKeyNames()|ForEach-Object{"
-    . "if($key=$hklm.OpenSubKey('" streamsPath "\'+$_,$true)){"
-    . "$key.SetValue('ModifiedRender',[byte[]](@(0xFF)*28),'Binary');"
-    . "$key.SetValue('kSet_StreamRedirectionDeviceId',$bytes,'Binary');"
-    . "@{kSet_StreamRedirectionState=1;kSet_StreamRedirectionDeviceIdCount=" count ";kSet_RenderState=1;kSet_StreamRedirectionGainLin=1065353216;kSet_StreamRedirectionMute=0}.GetEnumerator()|ForEach-Object{$key.SetValue($_.Key,$_.Value,'DWord')};"
-    . "$key.Close()}};$root.Close()}"
+    . "$k=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\VirtualSurroundSound',"
+    . "[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,"
+    . "[System.Security.AccessControl.RegistryRights]::QueryValues -bor [System.Security.AccessControl.RegistryRights]::SetValue);"
+    . "$k.SetValue('TargetDeviceId','" deviceId "','String');$k.Close()"
     . '"', , "Hide")
 
-  RunWait(A_ComSpec ' /c "' SoundCli '" /Enable "' SonarRender '"', , "Hide")
-  RunWait(A_ComSpec ' /c "' SoundCli '" /SetDefault "' SonarRender '" 0', , "Hide")
-  RunWait(A_ComSpec ' /c "' SoundCli '" /SetDefault "' SonarRender '" 2', , "Hide")
+  RunWait(A_ComSpec ' /c "' SoundCli '" /Enable "' CableRender '"', , "Hide")
+  loop 3
+    RunWait(A_ComSpec ' /c "' SoundCli '" /SetDefault "' CableRender '" ' (A_Index - 1), , "Hide")
 
   label := name " (" deviceName ")"
   RegWrite(label, "REG_SZ", RegKey, "AudioDevice")
@@ -133,7 +105,6 @@ RouteDevice(name, deviceName, deviceId) {
 ; --- Tray menu ---
 
 BuildTrayMenu() {
-  global AudioDevice
   A_TrayMenu.Delete()
   A_TrayMenu.Add("Show device OSD", ToggleShowDevice)
   if AlwaysShowDevice
@@ -151,7 +122,35 @@ BuildTrayMenu() {
     A_TrayMenu.Disable("(no devices found)")
   }
   A_TrayMenu.Add()
+  A_TrayMenu.Add("Sound control panel", (*) => Run("mmsys.cpl"))
+  A_TrayMenu.Add("Volume mixer", (*) => Run("sndvol.exe"))
+  A_TrayMenu.Add()
   A_TrayMenu.Add("Exit", (*) => ExitApp())
+}
+
+RefreshTray(*) {
+  BuildTrayMenu()
+  UpdateTrayIcon(GetVolPercent())
+}
+
+; vss-device-select.bat auto-route writes registry from scheduled task; watcher replaces relaunching script
+WatchDevice(*) {
+  prev := AudioDevice
+  if GetDevice() != prev {
+    RefreshTray()
+    ShowDeviceOsd(AudioDevice)
+  }
+  ArmRegWatch()
+}
+
+ArmRegWatch() {
+  ; single-shot per call, re-arm after each notification; 0x4 = REG_NOTIFY_CHANGE_LAST_SET, 0x10000000 = THREAD_AGNOSTIC
+  DllCall("advapi32\RegNotifyChangeKeyValue", "Ptr", hRegKey, "Int", 0, "UInt", 0x4 | 0x10000000, "Ptr", hRegEvent, "Int", 1)
+}
+
+; runs on threadpool thread: GUI/registry work unsafe here, hand off to main thread
+OnRegSignal(*) {
+  DllCall("PostMessageW", "Ptr", A_ScriptHwnd, "UInt", 0x8001, "Ptr", 0, "Ptr", 0)
 }
 
 ToggleShowDevice(name, pos, menu) {
@@ -175,110 +174,103 @@ SwitchDevice(dev, *) {
 
 GuiStyle := "-Caption +AlwaysOnTop +ToolWindow +E0x08000000 -DPIScale"
 
-RoundCorners(guiObj, w, h, r) {
-  hRgn := DllCall("CreateRoundRectRgn", "Int", 0, "Int", 0, "Int", w + 1, "Int", h + 1, "Int", r, "Int", r)
-  DllCall("SetWindowRgn", "Ptr", guiObj.Hwnd, "Ptr", hRgn, "Int", true)
+; -DPIScale keeps layout in physical pixels, but point-sized fonts still track DPI; scale layout to match
+S(n) {
+  return Round(n * A_ScreenDPI / 96)
 }
 
-ShowOsdPair(border, flyout, bw, bh, br, bx, by) {
-  border.Show("NoActivate w" bw " h" bh " x" bx " y" by)
-  RoundCorners(border, bw, bh, br)
-  flyout.Show("NoActivate w" (bw - 2) " h" (bh - 2) " x" (bx + 1) " y" (by + 1))
-  RoundCorners(flyout, bw - 2, bh - 2, br - 1)
-  WinSetAlwaysOnTop(1, border)
-  WinSetAlwaysOnTop(1, flyout)
+; rebuild OSD guis lazily on next show
+EnsureOsdGuis() {
+  if BuiltDpi = A_ScreenDPI
+    return
+  for g in [VolGui, DevGui]
+    try g.Destroy()
+  BuildOsdGuis()
+}
+
+; DWM-rounded corners are GPU-antialiased; SetWindowRgn regions are 1-bit masks and always jagged
+RoundCorners(guiObj) {
+  DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", guiObj.Hwnd, "UInt", 33, "UInt*", 2, "UInt", 4)  ; DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_ROUND
+  DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", guiObj.Hwnd, "UInt", 34, "UInt*", 0x222222, "UInt", 4)  ; DWMWA_BORDER_COLOR, DWM draws antialiased 1px outline
 }
 
 VolIcon(vol) {
-  if (vol <= 0)
+  if vol <= 0
     return Chr(0xE74F)
-  if (vol <= 33)
+  if vol <= 33
     return Chr(0xE993)
-  if (vol <= 66)
+  if vol <= 66
     return Chr(0xE994)
   return Chr(0xE995)
 }
 
-UpdateVolControls(gui, vol) {
-  gui["IconText"].Text := VolIcon(vol)
-  gui["VolumeBar"].Value := vol
-  gui["VolText"].Text := vol
+UpdateVolControls(vol) {
+  VolGui["IconText"].Text := VolIcon(vol)
+  VolGui["VolumeBar"].Value := vol
+  VolGui["VolText"].Text := vol
 }
 
-; Volume OSD
-BorderW := 192
-BorderH := 48
-BorderR := 16
+BuildOsdGuis() {
+  global
 
-BorderGui := Gui(GuiStyle)
-BorderGui.BackColor := "222222"
+  ; Volume OSD
+  VolW := S(192)
+  VolH := S(48)
 
-FlyoutGui := Gui(GuiStyle " +Owner" BorderGui.Hwnd)
-FlyoutGui.BackColor := "2b2b2b"
-FlyoutGui.SetFont("s12", "Segoe MDL2 Assets")
-FlyoutGui.MarginX := 0
-FlyoutGui.MarginY := 0
-FlyoutGui.Add("Text", "vIconText cFFFFFF x12 w28 h" (BorderH - 2) " Center +0x200 Section", Chr(0xE995))
-FlyoutGui.SetFont("s9", "Segoe UI")
-FlyoutGui.Add("Progress", "vVolumeBar w102 h6 c5294E2 Background505050 Range0-100 ys+20 x+4", 0)
-FlyoutGui.SetFont("s11", "Segoe UI Variable Display")
-FlyoutGui.Add("Text", "vVolText cFFFFFF w32 h" (BorderH - 2) " Right +0x200 ys x+0", "100")
+  VolGui := Gui(GuiStyle)
+  VolGui.BackColor := "2b2b2b"
+  VolGui.SetFont("s12", "Segoe MDL2 Assets")
+  VolGui.MarginX := 0
+  VolGui.MarginY := 0
+  VolGui.Add("Text", "vIconText cFFFFFF x" S(12) " w" S(28) " h" VolH " Center +0x200 Section", Chr(0xE995))
+  VolGui.SetFont("s9", "Segoe UI")
+  VolGui.Add("Progress", "vVolumeBar w" S(102) " h" S(6) " c5294E2 Background505050 Range0-100 ys+" S(20) " x+" S(4), 0)
+  VolGui.SetFont("s11", "Segoe UI Variable Display")
+  VolGui.Add("Text", "vVolText cFFFFFF w" S(32) " h" VolH " Right +0x200 ys x+0", "100")
 
-; Device OSD
-DevBorderW := 280
-DevBorderH := 40
-DevBorderR := 16
-DevGap := 8
+  ; Device OSD
+  DevW := S(280)
+  DevH := S(40)
+  DevGap := S(8)
 
-DevBorderGui := Gui(GuiStyle)
-DevBorderGui.BackColor := "222222"
+  DevGui := Gui(GuiStyle)
+  DevGui.BackColor := "2b2b2b"
+  DevGui.MarginX := 0
+  DevGui.MarginY := 0
+  DevGui.SetFont("s12", "Segoe MDL2 Assets")
+  DevGui.Add("Text", "cFFFFFF x" S(12) " w" S(28) " h" DevH " Center +0x200 Section", Chr(0xE7F5))
+  DevGui.SetFont("s11", "Segoe UI Variable Display")
+  DevGui.Add("Text", "vDevName cFFFFFF w" (DevW - S(54)) " h" DevH " +0x200 ys x+" S(4), "")
 
-DevFlyoutGui := Gui(GuiStyle " +Owner" DevBorderGui.Hwnd)
-DevFlyoutGui.BackColor := "2b2b2b"
-DevFlyoutGui.MarginX := 0
-DevFlyoutGui.MarginY := 0
-DevFlyoutGui.SetFont("s12", "Segoe MDL2 Assets")
-DevFlyoutGui.Add("Text", "cFFFFFF x12 w28 h" (DevBorderH - 2) " Center +0x200 Section", Chr(0xE7F5))
-DevFlyoutGui.SetFont("s11", "Segoe UI Variable Display")
-DevFlyoutGui.Add("Text", "vDevName cFFFFFF w" (DevBorderW - 54) " h" (DevBorderH - 2) " +0x200 ys x+4", "")
+  for g in [VolGui, DevGui]
+    RoundCorners(g)
+
+  BuiltDpi := A_ScreenDPI
+}
+BuildOsdGuis()
 
 HideAll(*) {
-  DevFlyoutGui.Hide()
-  DevBorderGui.Hide()
-  FlyoutGui.Hide()
-  BorderGui.Hide()
+  DevGui.Hide()
+  VolGui.Hide()
 }
 
 ShowVolOsd() {
-  global BorderW, BorderH, BorderR
-  vol := Round(SoundGetVolume(, GetDevice()))
-  UpdateVolControls(FlyoutGui, vol)
-  sw := A_ScreenWidth, sh := A_ScreenHeight
-  bx := sw // 2 - BorderW // 2, by := sh - 110
-  ShowOsdPair(BorderGui, FlyoutGui, BorderW, BorderH, BorderR, bx, by)
+  EnsureOsdGuis()
+  UpdateVolControls(GetVolPercent())
+  VolGui.Show("NoActivate w" VolW " h" VolH " x" (A_ScreenWidth // 2 - VolW // 2) " y" (A_ScreenHeight - S(110)))
   SetTimer(HideAll, -2500)
 }
 
 ShowDeviceOsd(name) {
-  global BorderW, BorderH, BorderR, DevBorderW, DevBorderH, DevBorderR, DevGap
-  DevFlyoutGui["DevName"].Text := name
-  try vol := Round(SoundGetVolume(, GetDevice()))
-  catch
-    vol := 0
-  UpdateVolControls(FlyoutGui, vol)
-  sw := A_ScreenWidth, sh := A_ScreenHeight
-  volBx := sw // 2 - BorderW // 2, volBy := sh - 110
-  devBx := sw // 2 - DevBorderW // 2, devBy := volBy - DevBorderH - DevGap
-  ShowOsdPair(BorderGui, FlyoutGui, BorderW, BorderH, BorderR, volBx, volBy)
-  ShowOsdPair(DevBorderGui, DevFlyoutGui, DevBorderW, DevBorderH, DevBorderR, devBx, devBy)
-  SetTimer(HideAll, -2500)
+  ShowVolOsd()
+  DevGui["DevName"].Text := name
+  DevGui.Show("NoActivate w" DevW " h" DevH " x" (A_ScreenWidth // 2 - DevW // 2) " y" (A_ScreenHeight - S(110) - DevH - DevGap))
 }
 
 ; --- Startup ---
 
 UpdateTrayIcon(vol) {
-  global SndVolDll
-  static hMod := DllCall("LoadLibraryEx", "Str", SndVolDll, "Ptr", 0, "UInt", 0x02, "Ptr")
+  static hMod := DllCall("LoadLibraryEx", "Str", A_WinDir "\System32\SndVolSSO.dll", "Ptr", 0, "UInt", 0x02, "Ptr")
   resId := vol <= 0 ? 120 : vol <= 33 ? 122 : vol <= 66 ? 123 : 124
   hIcon := DllCall("LoadImage", "Ptr", hMod, "Ptr", resId, "UInt", 1, "Int", 16, "Int", 16, "UInt", 0, "Ptr")
   if hIcon
@@ -323,14 +315,25 @@ OnMessage(0x404, OnTrayClick)
 if !ShowTrayIcon
   A_IconHidden := true
 else {
-  try UpdateTrayIcon(Round(SoundGetVolume(, GetDevice())))
-  BuildTrayMenu()
-  ; WM_DEVICECHANGE: rebuild device menu, debounced (same func = timer reset)
-  OnMessage(0x219, (*) => SetTimer(BuildTrayMenu, -2000))
+  RefreshTray()
+  ; WM_DEVICECHANGE: rebuild device menu + icon, debounced (same func = timer reset)
+  OnMessage(0x219, (*) => SetTimer(RefreshTray, -2000))
 }
 
 if AudioDevice != ""
   ShowDeviceOsd(AudioDevice)
+
+; event-driven registry watch: auto-reset event signals threadpool wait, callback marshals to main thread
+hRegKey := 0
+DllCall("advapi32\RegOpenKeyExW", "Ptr", 0x80000001, "WStr", StrReplace(RegKey, "HKCU\"), "UInt", 0, "UInt", 0x0010, "Ptr*", &hRegKey)  ; HKCU, KEY_NOTIFY
+if hRegKey {
+  hRegEvent := DllCall("CreateEventW", "Ptr", 0, "Int", 0, "Int", 0, "Ptr", 0, "Ptr")
+  ScriptHwnd := A_ScriptHwnd
+  OnMessage(0x8001, WatchDevice)
+  ArmRegWatch()
+  hRegWait := 0
+  DllCall("RegisterWaitForSingleObject", "Ptr*", &hRegWait, "Ptr", hRegEvent, "Ptr", CallbackCreate(OnRegSignal, , 2), "Ptr", 0, "UInt", 0xFFFFFFFF, "UInt", 0)
+}
 
 #HotIf IsMouseLocal() && IsDefaultDevice()
 $Volume_Up::Volume(2)

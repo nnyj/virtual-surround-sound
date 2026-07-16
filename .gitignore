@@ -1,4 +1,3 @@
-driver/Sonar.DevInst.exe
-driver/Steelseries.AudioDeviceInstaller.exe
-driver/vad
-driver/apoDriverPackage
+apo/build/
+*.log
+tools/soundvolumeview.cfg
