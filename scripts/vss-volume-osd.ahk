@@ -258,6 +258,8 @@ ShowVolOsd() {
   EnsureOsdGuis()
   UpdateVolControls(GetVolPercent())
   VolGui.Show("NoActivate w" VolW " h" VolH " x" (A_ScreenWidth // 2 - VolW // 2) " y" (A_ScreenHeight - S(110)))
+  ; NoActivate show doesn't re-raise into topmost band, re-assert or OSD hides behind other topmost windows
+  WinSetAlwaysOnTop(1, VolGui)
   SetTimer(HideAll, -2500)
 }
 
@@ -265,6 +267,7 @@ ShowDeviceOsd(name) {
   ShowVolOsd()
   DevGui["DevName"].Text := name
   DevGui.Show("NoActivate w" DevW " h" DevH " x" (A_ScreenWidth // 2 - DevW // 2) " y" (A_ScreenHeight - S(110) - DevH - DevGap))
+  WinSetAlwaysOnTop(1, DevGui)
 }
 
 ; --- Startup ---
