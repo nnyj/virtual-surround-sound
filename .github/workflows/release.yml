@@ -35,7 +35,6 @@ jobs:
           mkdir -p pkg/virtual-surround-sound/apo/build
           cp apo/build/vss_apo.dll pkg/virtual-surround-sound/apo/build/
           cd pkg && 7z a "../virtual-surround-sound-${GITHUB_REF_NAME}.zip" virtual-surround-sound >/dev/null
-          cd .. && sha256sum "virtual-surround-sound-${GITHUB_REF_NAME}.zip" apo/build/vss_apo.dll > sha256sums.txt
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -44,4 +43,3 @@ jobs:
           files: |
             virtual-surround-sound-*.zip
             apo/build/vss_apo.dll
-            sha256sums.txt
