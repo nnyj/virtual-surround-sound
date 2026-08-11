@@ -110,6 +110,11 @@ public:
     if (thread_) ring_.push(buf, channels, frames);
   }
 
+  // render thread exits on device invalidation (e.g. BT disconnect); dead thread = silent sink
+  bool Alive() const {
+    return thread_ && WaitForSingleObject(thread_, 0) == WAIT_TIMEOUT;
+  }
+
 private:
   static DWORD WINAPI ThreadProc(LPVOID ctx) {
     ((RenderSink*)ctx)->Run();
@@ -421,8 +426,8 @@ private:
       if (WaitForMultipleObjects(2, waits, FALSE, INFINITE) != WAIT_OBJECT_0 + 1) break;  // stop or error
       wchar_t target_id[512];
       bool has = ReadTargetId(target_id);
-      if (has && wcscmp(target_id, self->current_target_) != 0) {
-        dbg(L"watcher: target changed, restarting sink");
+      if (has && (wcscmp(target_id, self->current_target_) != 0 || !self->sink_.Alive())) {
+        dbg(L"watcher: target changed or sink dead, restarting sink");
         wcscpy_s(self->current_target_, target_id);
         self->sink_.Stop();
         self->sink_.Start(target_id, self->rate_);
