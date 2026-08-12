@@ -129,7 +129,6 @@ BuildTrayMenu() {
 }
 
 RefreshTray(*) {
-  BuildTrayMenu()
   UpdateTrayIcon(GetVolPercent())
 }
 
@@ -166,7 +165,6 @@ SwitchDevice(dev, *) {
   global AudioDevice
   RouteDevice(dev.name, dev.deviceName, dev.id)
   AudioDevice := dev.label
-  BuildTrayMenu()
   ShowDeviceOsd(AudioDevice)
 }
 
@@ -281,6 +279,9 @@ UpdateTrayIcon(vol) {
 }
 
 ShowTrayMenu() {
+  ; no endpoint event covers an audiosrv restart, so rebuild per open
+  GetDevice()
+  BuildTrayMenu()
   MouseGetPos(&mx, &my)
   rect := Buffer(16, 0)
   DllCall("SystemParametersInfo", "UInt", 0x0030, "UInt", 0, "Ptr", rect, "UInt", 0)

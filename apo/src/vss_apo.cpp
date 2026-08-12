@@ -84,6 +84,33 @@ struct StereoRing {
 // All COM/WASAPI happens on the thread, APO threads only touch ring + events.
 // ---------------------------------------------------------------------------
 
+// wakes the render thread when the target endpoint goes ACTIVE, so reopening needs no polling
+class DeviceWatch : public IMMNotificationClient {
+public:
+  HANDLE signal = nullptr;
+  const wchar_t* target = nullptr;
+  STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
+    if (!ppv) return E_POINTER;
+    if (riid == __uuidof(IUnknown) || riid == __uuidof(IMMNotificationClient)) {
+      *ppv = static_cast<IMMNotificationClient*>(this);
+      return S_OK;
+    }
+    *ppv = nullptr;
+    return E_NOINTERFACE;
+  }
+  STDMETHODIMP_(ULONG) AddRef() override { return 2; }  // owned by RenderSink, outlives registration
+  STDMETHODIMP_(ULONG) Release() override { return 1; }
+  // MMDevice worker thread: signal only, no blocking or WASAPI calls here
+  STDMETHODIMP OnDeviceStateChanged(LPCWSTR id, DWORD state) override {
+    if (state == DEVICE_STATE_ACTIVE && target && id && !wcscmp(id, target)) SetEvent(signal);
+    return S_OK;
+  }
+  STDMETHODIMP OnDeviceAdded(LPCWSTR) override { return S_OK; }
+  STDMETHODIMP OnDeviceRemoved(LPCWSTR) override { return S_OK; }
+  STDMETHODIMP OnDefaultDeviceChanged(EDataFlow, ERole, LPCWSTR) override { return S_OK; }
+  STDMETHODIMP OnPropertyValueChanged(LPCWSTR, const PROPERTYKEY) override { return S_OK; }
+};
+
 class RenderSink {
 public:
   void Start(const wchar_t* device_id, UINT32 sample_rate) {
@@ -92,6 +119,7 @@ public:
     rate_ = sample_rate;
     ring_.read_pos.store(ring_.write_pos.load());
     stop_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    device_event_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     thread_ = CreateThread(nullptr, 0, ThreadProc, this, 0, nullptr);
     if (!thread_) dbg(L"CreateThread failed");
   }
@@ -102,17 +130,14 @@ public:
     WaitForSingleObject(thread_, 3000);
     CloseHandle(thread_);
     CloseHandle(stop_event_);
+    CloseHandle(device_event_);
     thread_ = nullptr;
     stop_event_ = nullptr;
+    device_event_ = nullptr;
   }
 
   void PushFrames(const float* buf, UINT32 channels, UINT32 frames) {
     if (thread_) ring_.push(buf, channels, frames);
-  }
-
-  // render thread exits on device invalidation (e.g. BT disconnect); dead thread = silent sink
-  bool Alive() const {
-    return thread_ && WaitForSingleObject(thread_, 0) == WAIT_TIMEOUT;
   }
 
 private:
@@ -130,8 +155,29 @@ private:
     return false;
   }
 
+  // a failed open must not end the thread, reopening is what recovers the sink
   void Run() {
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    IMMDeviceEnumerator* notify_enum = nullptr;
+    watch_.signal = device_event_;
+    watch_.target = device_id_;
+    if (SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&notify_enum))))
+      notify_enum->RegisterEndpointNotificationCallback(&watch_);
+    HANDLE waits[2] = { stop_event_, device_event_ };
+    for (;;) {
+      RunSession();
+      // endpoint going ACTIVE wakes this at once; the timeout only covers a dropped callback
+      if (WaitForMultipleObjects(2, waits, FALSE, REOPEN_BACKSTOP_MS) == WAIT_OBJECT_0) break;
+    }
+    if (notify_enum) {
+      notify_enum->UnregisterEndpointNotificationCallback(&watch_);
+      notify_enum->Release();
+    }
+    CoUninitialize();
+  }
+
+  // one open/pump/teardown cycle
+  void RunSession() {
     IMMDeviceEnumerator* enumerator = nullptr;
     IMMDevice* device = nullptr;
     IAudioClient* client = nullptr;
@@ -189,13 +235,23 @@ private:
       hr = client->Start();
       if (FAILED(hr)) { dbg(L"client Start failed", hr); break; }
       started = true;
+      ring_.read_pos.store(ring_.write_pos.load(std::memory_order_acquire), std::memory_order_release);
 
       HANDLE waits[2] = { stop_event_, buffer_event };
       UINT32 max_fill = buffer_frames * 3;
+      int idle = 0;
       for (;;) {
         DWORD w = WaitForMultipleObjects(2, waits, FALSE, 500);
-        if (w == WAIT_OBJECT_0) break;
-        if (w == WAIT_FAILED) break;
+        if (w == WAIT_OBJECT_0 || w == WAIT_FAILED) break;
+        // A live stream signals every device period. BT reconnect keeps the endpoint ID but
+        // replaces the device, leaving a stream that never faults and never clocks; silence
+        // here is the only symptom, so treat it as dead and reopen.
+        if (w == WAIT_TIMEOUT) {
+          if (++idle < STALL_TICKS) continue;
+          dbg(L"sink stalled, reopening");
+          break;
+        }
+        idle = 0;
         ring_.drop_to(max_fill);
         UINT32 padding = 0;
         if (FAILED(client->GetCurrentPadding(&padding))) break;
@@ -218,14 +274,18 @@ private:
     if (device) device->Release();
     if (enumerator) enumerator->Release();
     CloseHandle(buffer_event);
-    CoUninitialize();
   }
 
+  static const DWORD REOPEN_BACKSTOP_MS = 30000;
+  static const int STALL_TICKS = 4;  // x 500ms wait
+
   StereoRing ring_;
+  DeviceWatch watch_;
   wchar_t device_id_[512] = {};
   UINT32 rate_ = 48000;
   HANDLE thread_ = nullptr;
   HANDLE stop_event_ = nullptr;
+  HANDLE device_event_ = nullptr;
 };
 
 // ---------------------------------------------------------------------------
@@ -426,12 +486,14 @@ private:
       if (WaitForMultipleObjects(2, waits, FALSE, INFINITE) != WAIT_OBJECT_0 + 1) break;  // stop or error
       wchar_t target_id[512];
       bool has = ReadTargetId(target_id);
-      if (has && (wcscmp(target_id, self->current_target_) != 0 || !self->sink_.Alive())) {
-        dbg(L"watcher: target changed or sink dead, restarting sink");
+      // restart on any write, unchanged value included: reconnect rewrites the same id and the
+      // sink may be holding a stream bound to the device instance that went away
+      if (has) {
+        dbg(L"watcher: target written, restarting sink");
         wcscpy_s(self->current_target_, target_id);
         self->sink_.Stop();
         self->sink_.Start(target_id, self->rate_);
-      } else if (!has && self->current_target_[0]) {
+      } else if (self->current_target_[0]) {
         dbg(L"watcher: target cleared, stopping sink");
         self->current_target_[0] = 0;
         self->sink_.Stop();
