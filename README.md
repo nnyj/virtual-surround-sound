@@ -38,6 +38,8 @@ Plumbing details and Windows APO registration rules: [docs/apo-forwarder-interna
 
 ## Install
 
+- Linux AND macOS: [headless CamillaDSP setup](docs/portable.md).
+
 Prerequisites:
 
 - Windows 10/11

@@ -1,3 +1,4 @@
 apo/build/
 *.log
 tools/soundvolumeview.cfg
+__pycache__/
