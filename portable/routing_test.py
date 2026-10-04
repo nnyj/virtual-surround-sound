@@ -106,7 +106,7 @@ class routing_test(unittest.TestCase):
   def _cleanup(self):
     if self.installed:
       self._cli("uninstall", check=False)
-    for node_id in reversed(self.outputs):
+    for node_id in reversed(self.outputs.copy()):
       self._stop_output(node_id)
 
   def _cli(self, *args, check=True):
@@ -137,7 +137,8 @@ class routing_test(unittest.TestCase):
     return node_id
 
   def _stop_output(self, node_id):
-    run(["pw-cli", "destroy", str(node_id)], check=False)
+    run(["pw-cli", "destroy", str(node_id)])
+    self.outputs.remove(node_id)
 
   def _objects(self):
     return json.loads(run(["pw-dump"]).stdout)
@@ -265,8 +266,8 @@ class routing_test(unittest.TestCase):
     self.assertEqual([item["id"] for item in devices if item["id"] == OUTPUT_A], [OUTPUT_A])
 
     self._configure(OUTPUT_A, first=True)
-    self._cli("install")
     self.installed = True
+    self._cli("install")
     self._cli("start")
     wait_for(self._status, lambda status: status.get("healthy") and status.get("sink_ports") == 8,
              "initial routing")
@@ -277,6 +278,13 @@ class routing_test(unittest.TestCase):
     dsp_pid = wait_for(lambda: self._unit_pid(UNIT), lambda pid: pid not in (0, old_pid),
                        "CamillaDSP service restart")
     wait_for(self._playback_target, lambda target: target == OUTPUT_A, "routing after restart")
+
+    run(["systemctl", "--user", "stop", ENDPOINT_UNIT])
+    failed = self._cli("run", check=False)
+    self.assertNotEqual(failed.returncode, 0)
+    self.assertIn("Background processing is active", failed.stderr)
+    self.assertEqual(self._unit_pid(UNIT), dsp_pid)
+    run(["systemctl", "--user", "start", ENDPOINT_UNIT])
 
     old_pid = self._unit_pid(ENDPOINT_UNIT)
     run(["systemctl", "--user", "kill", "--signal=KILL", ENDPOINT_UNIT])

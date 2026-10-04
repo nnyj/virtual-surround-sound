@@ -302,8 +302,6 @@ def install_service(config_path, camilladsp):
     if loaded:
       _run(["launchctl", "bootout", _mac_target()])
     (agent_dir / f"{MAC_LABEL}.plist").write_bytes(plist)
-    if loaded:
-      _run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(_mac_agent_path())])
 
 def _mac_target():
   return f"gui/{os.getuid()}/{MAC_LABEL}"

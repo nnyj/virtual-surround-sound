@@ -27,6 +27,8 @@ python3 portable/vss.py status
 - Configure the application for 7.1 audio.
 - The service creates the virtual sink at login.
 - A PipeWire loopback exposes eight named speaker channels AND feeds CamillaDSP without remixing.
+- CamillaDSP capture ports are unpositioned, direct virtual-sink use causes ordinary clients to downmix.
+- DSP remains running while a failed endpoint restarts.
 - PipeWire handles output sample-rate conversion.
 - WSL verifies processing AND graph behavior, physical headphone playback requires a desktop Linux audio device.
 
@@ -106,6 +108,7 @@ python3 portable/vss.py start
 - Seven-channel HRIRs use symmetric responses, tracks 8 through 14 repeat tracks 1 through 7.
 - Mapping follows the [HeSuVi HRIR guide](https://sourceforge.net/p/hesuvi/wiki/How-To%20Record%20Impulse%20Responses%20Digitally/).
 - LFE passes through a 111 Hz low-pass filter before the center responses AND configured bass gain.
+- Filtered LFE joins center before fourteen convolution passes.
 - Seven speaker pairs AND LFE contributions sum into two ear channels.
 
 ## Verification AND operations
@@ -141,9 +144,12 @@ python3 portable/vss.py uninstall
 - `portable/dsp.py` owns HRIR validation AND shared channel processing.
 - `portable/platforms.py` owns device APIs, routing AND native service managers.
 - `portable/vss.py` owns CLI AND persistent profiles.
+- Runtime Python dependencies: standard library only.
 - Tests use generated synthetic responses without third-party datasets.
 - Run `python3 portable/dsp_test.py --engine /path/to/camilladsp` for five offline checks.
 - Set `VSS_ROUTING_TEST=1` AND `CAMILLADSP` to run `portable/routing_test.py` on an unused Linux VSS session.
+- The lifecycle test requires running PipeWire AND WirePlumber services.
+- The lifecycle test refuses to overwrite existing VSS services OR client rules.
 - macOS AND Linux share the same convolution pipeline.
 - Windows backend replacement requires live latency, reliability AND listening comparison against the APO.
 - Measured results AND environment changes: [cross_platform_work.md](cross_platform_work.md).

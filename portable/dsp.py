@@ -1,6 +1,5 @@
 """Build a CamillaDSP 4.1 binaural pipeline from a HeSuVi HRIR."""
 
-import json
 import math
 import struct
 from pathlib import Path
@@ -171,7 +170,3 @@ def build_config(profile, capture, playback):
     },
     "pipeline": pipeline,
   }
-
-def write_config(path, config):
-  """Write a config as JSON, a YAML-compatible CamillaDSP config."""
-  Path(path).write_text(json.dumps(config, indent=2, allow_nan=False) + "\n", encoding="utf-8")

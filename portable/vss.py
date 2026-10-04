@@ -167,7 +167,7 @@ def main():
         raise ValueError('\n'.join(problems))
       platforms.validate_devices(settings['output'], settings['capture'])
       if args.command == 'run':
-        if platforms.status()['running']:
+        if platforms.status()['dsp_running']:
           raise ValueError('Background processing is active, run stop before run.')
         if current_platform == 'linux':
           platforms.install_service(directory / 'config.json', engine)

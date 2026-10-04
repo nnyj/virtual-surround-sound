@@ -1,5 +1,6 @@
 """Offline audio checks for the shared CamillaDSP pipeline."""
 
+import json
 import math
 import os
 import struct
@@ -9,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from dsp import build_config, validate_hrir, write_config
+from dsp import build_config, validate_hrir
 
 ENGINE = os.environ.get("CAMILLADSP")
 if len(sys.argv) > 2 and sys.argv[1] == "--engine":
@@ -43,7 +44,7 @@ def run_engine(folder, hrir, values, eq=None, capture_channels=8):
   capture = {"type": "RawFile", "channels": capture_channels, "filename": str(input_path), "format": "F32_LE"}
   playback = {"type": "File", "channels": 2, "filename": str(output_path), "format": "F32_LE"}
   config = build_config(profile, capture, playback)
-  write_config(config_path, config)
+  config_path.write_text(json.dumps(config, allow_nan=False), encoding="utf-8")
   checked = subprocess.run([ENGINE, "--check", str(config_path)], capture_output=True, text=True, timeout=15)
   if checked.returncode:
     raise AssertionError(checked.stderr)
@@ -97,7 +98,8 @@ class DspTest(unittest.TestCase):
       else:
         return
       config_path = self.folder / "native.yml"
-      write_config(config_path, build_config({"hrir_path": str(self.hrir)}, capture, playback))
+      config = build_config({"hrir_path": str(self.hrir)}, capture, playback)
+      config_path.write_text(json.dumps(config, allow_nan=False), encoding="utf-8")
       checked = subprocess.run([ENGINE, "--check", str(config_path)], capture_output=True, text=True, timeout=15)
       self.assertEqual(checked.returncode, 0, checked.stderr)
 
