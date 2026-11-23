@@ -59,6 +59,8 @@ Internals: [docs/native-route-internals.md](docs/native-route-internals.md)
 
 ## Install
 
+- Linux AND macOS: [headless CamillaDSP setup](docs/portable.md).
+
 Prerequisites:
 
 - Windows 10/11
