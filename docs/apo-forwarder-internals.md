@@ -39,7 +39,7 @@ How `apo/vss_apo.dll` replicates Sonar's redirection mechanism on a VB-Cable end
 ## Endpoint format (7.1)
 
 - `PKEY_AudioEngine_DeviceFormat` registry writes get reverted by AudioEndpointBuilder, and the stored value is a serialized PROPVARIANT (8-byte `41 00 00 00 01 00 00 00` header + WAVEFORMATEXTENSIBLE)
-- the working method is `IPolicyConfig::SetDeviceFormat` (undocumented, same path as mmsys.cpl Configure), see `debug/set_71_policy.ps1`, takes effect without a service restart
+- the working method is `IPolicyConfig::SetDeviceFormat` (undocumented, same path as mmsys.cpl Configure), see `apo/format_policy.ps1`, takes effect without a service restart
 
 ## Debugging traps (cost days)
 

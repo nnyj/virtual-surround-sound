@@ -1,7 +1,13 @@
-# Removes VSS Forwarder APO. Registry-only parachute, works even if the DLL crashes audiodg.
+# Removes VSS Forwarder APO and the native APO. Registry-only parachute, works even if the DLL crashes audiodg.
 $ErrorActionPreference = 'Continue'
-$apo_clsids = '{B2F007A1-EAD1-478B-9888-ABC593E55B5D}', '{8A4F0C6D-2B7E-4B36-9C51-3D1E7A5F0B42}'  # current + legacy dev clsid
+$native_clsid = '{7C1E5A42-5D0B-4E0C-9B7A-6F3B2D9E8A11}'
+$apo_clsids = '{B2F007A1-EAD1-478B-9888-ABC593E55B5D}', '{8A4F0C6D-2B7E-4B36-9C51-3D1E7A5F0B42}', $native_clsid  # current + legacy dev clsid + native
+$sfx_slot = '{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},5'
+$native_saved = Get-ItemProperty 'HKLM:\SOFTWARE\VirtualSurroundSound\NativeSaved' -ErrorAction SilentlyContinue
+$native_endpoints = @()
 
+# endpoint builder caches FX config and audiodg holds the dll, stopping builder stops audiosrv
+Stop-Service AudioEndpointBuilder -Force
 $render_root = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render'
 Get-ChildItem $render_root | ForEach-Object {
   # exact-rights open, FxProperties ACL denies the KEY_WRITE that Remove-ItemProperty requests
@@ -10,6 +16,13 @@ Get-ChildItem $render_root | ForEach-Object {
     [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
     [System.Security.AccessControl.RegistryRights]::QueryValues -bor [System.Security.AccessControl.RegistryRights]::SetValue)
   if ($fx_key) {
+    # native APO: restore the saved stream effect, saved empty string means the slot was absent
+    $saved = if ($native_saved) { $native_saved.($_.PSChildName) }
+    if ($null -ne $saved -or $fx_key.GetValue($sfx_slot) -eq $native_clsid) {
+      if ($saved) { $fx_key.SetValue($sfx_slot, $saved, 'String') } else { $fx_key.DeleteValue($sfx_slot, $false) }
+      $native_endpoints += $_.PSChildName
+      Write-Host "restored stream effect on endpoint $($_.PSChildName)"
+    }
     foreach ($slot in '6', '7') {  # classic MFX/EFX from legacy installs
       if ($apo_clsids -contains $fx_key.GetValue("{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},$slot")) {
         $fx_key.DeleteValue("{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},$slot")
@@ -35,5 +48,8 @@ foreach ($clsid in $apo_clsids) {
 }
 Remove-Item 'HKLM:\SOFTWARE\VirtualSurroundSound' -Recurse -ErrorAction SilentlyContinue
 Remove-Item 'C:\Program Files\VssAPO' -Recurse -Force -ErrorAction SilentlyContinue
-Restart-Service audiosrv -Force
+Start-Service AudioEndpointBuilder
+Start-Service audiosrv
+# mix format goes back to 2 ch only after this call
+foreach ($guid in $native_endpoints) { & (Join-Path $PSScriptRoot 'format_policy.ps1') -endpoint $guid -mode native }
 Write-Host 'Uninstalled, audio service restarted.'

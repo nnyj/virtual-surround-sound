@@ -13,13 +13,16 @@ SoundCli := A_ScriptDir "\..\tools\soundvolumeview.exe"
 if !FileExist(SoundCli)
   SoundCli := "soundvolumeview.exe"
 CableFilter := "VB-Audio Virtual Cable"
-CableRender := "VB-Audio Virtual Cable\Device\CABLE Input\Render"
+RenderKey := "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render"
+NativeClsid := "{7C1E5A42-5D0B-4E0C-9B7A-6F3B2D9E8A11}"
 
 AudioDevice := ""
 try AudioDevice := RegRead(RegKey, "AudioDevice")
 
+; cable route: CABLE Input is default, native route: the routed device itself is default
 IsDefaultDevice() {
-  return InStr(SoundGetName(), "CABLE Input")
+  name := SoundGetName()
+  return InStr(name, "CABLE Input") || name = AudioDevice
 }
 
 GetDevice() {
@@ -82,24 +85,28 @@ EnumerateDevices() {
   return devices
 }
 
-RouteDevice(name, deviceName, deviceId) {
-  ; vss_apo.dll watches TargetDeviceId (RegNotifyChangeKeyValue) and re-points its sink live.
-  ; reg add requests KEY_WRITE and gets denied for non-admin; .NET open with exact rights works
-  ; (apo\install.ps1 grants Users QueryValues+SetValue on the key).
-  RunWait('powershell -NoProfile -Command "'
-    . "$k=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\VirtualSurroundSound',"
-    . "[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,"
-    . "[System.Security.AccessControl.RegistryRights]::QueryValues -bor [System.Security.AccessControl.RegistryRights]::SetValue);"
-    . "$k.SetValue('TargetDeviceId','" deviceId "','String');$k.Close()"
-    . '"', , "Hide")
+RouteScript() {
+  path := A_ScriptDir "\vss-device-select.bat"
+  if !FileExist(path)
+    try path := RegRead(RegKey, "RouteScript")
+  return path
+}
 
-  RunWait(A_ComSpec ' /c "' SoundCli '" /Enable "' CableRender '"', , "Hide")
-  loop 3
-    RunWait(A_ComSpec ' /c "' SoundCli '" /SetDefault "' CableRender '" ' (A_Index - 1), , "Hide")
+RouteDevice(deviceId) {
+  ; one routing path for tray and task: the bat picks default device, forwarder target and player offsets
+  RunWait(A_ComSpec ' /c ""' RouteScript() '" auto "" 1 "' deviceId '""', , "Hide")
+}
 
-  label := name " (" deviceName ")"
-  RegWrite(label, "REG_SZ", RegKey, "AudioDevice")
-  RegWrite(deviceId, "REG_SZ", RegKey, "AudioDeviceId")
+; true when a value in the endpoint key of the device contains text, endpoint guid is the 5th dot token of the device id
+EndpointValueHas(deviceId, subKey, valueName, text) {
+  parts := StrSplit(deviceId, ".")
+  try return parts.Length >= 5 && InStr(RegRead(RenderKey "\" parts[5] "\" subKey, valueName), text)
+  return false
+}
+
+; the bat installs or removes the native APO elevated, then routes the device again
+SetNative(deviceId, enable, *) {
+  Run(A_ComSpec ' /c ""' RouteScript() '" native ' (enable ? "on" : "off") ' "' deviceId '""', , "Hide")
 }
 
 ; --- Tray menu ---
@@ -109,6 +116,14 @@ BuildTrayMenu() {
   A_TrayMenu.Add("Show device OSD", ToggleShowDevice)
   if AlwaysShowDevice
     A_TrayMenu.Check("Show device OSD")
+  deviceId := ""
+  try deviceId := RegRead(RegKey, "AudioDeviceId")
+  if EndpointValueHas(deviceId, "Properties", "{b3f8fa53-0004-438e-9003-51a46e139bfc},2", "BTHENUM") {
+    nativeOn := EndpointValueHas(deviceId, "FxProperties", "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},5", NativeClsid)
+    A_TrayMenu.Add("Bluetooth sync fix", SetNative.Bind(deviceId, !nativeOn))
+    if nativeOn
+      A_TrayMenu.Check("Bluetooth sync fix")
+  }
   A_TrayMenu.Add()
   devices := EnumerateDevices()
   if devices.Length {
@@ -163,7 +178,7 @@ ToggleShowDevice(name, pos, menu) {
 
 SwitchDevice(dev, *) {
   global AudioDevice
-  RouteDevice(dev.name, dev.deviceName, dev.id)
+  RouteDevice(dev.id)
   AudioDevice := dev.label
   ShowDeviceOsd(AudioDevice)
 }

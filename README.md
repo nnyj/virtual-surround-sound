@@ -22,6 +22,7 @@ Replaces the SteelSeries Sonar dependency this repo previously wrapped, no GG so
 - `IAudioClient3` low-latency path where available, 20ms shared mode fallback
 - Volume OSD (AutoHotkey) with tray device picker and scrollable volume
 - Auto-route on device plug/unplug via Task Scheduler
+- Optional Bluetooth sync fix: video stays in sync on Bluetooth headsets
 
 ## How it works
 
@@ -35,6 +36,21 @@ apps (7.1) -> CABLE Input (default device)
 The forwarder passes audio through untouched and mirrors it to the target device via a lock-free ring plus a dedicated render thread. Target device ID lives in `HKLM\SOFTWARE\VirtualSurroundSound\TargetDeviceId`, watched live by the APO so device switches take effect mid-stream.
 
 Plumbing details and Windows APO registration rules: [docs/apo-forwarder-internals.md](docs/apo-forwarder-internals.md)
+
+### Bluetooth sync fix
+
+A Bluetooth headset plays ~250 ms late. Players correct for that delay only when they play to the headset itself, so on the cable route video runs ahead of the sound. The fix puts a second APO from the same dll on the headset, the native route:
+
+```
+apps (7.1) -> headset (default device)
+           -> vss native SFX (hosts EAPO pre-mix + post-mix: HeSuVi 7.1 -> binaural, passes FL/FR on)
+           -> headset driver
+```
+
+- Turn on: select the headset in the tray menu, then tick `Bluetooth sync fix`. Needs admin once per headset and restarts Windows audio
+- Turn off: untick the item, the stream effect the headset had before comes back
+- The device picker uses the native route for every headset that has the fix, all other devices stay on the cable route
+- Tested with Microsoft Bluetooth and USB audio drivers only
 
 ## Install
 
@@ -52,7 +68,7 @@ Steps:
 
 1. Install VB-Cable, Equalizer APO (tick `CABLE Input` in its device selector), HeSuVi
 2. Download the [latest release](../../releases), run `apo\install.bat` as admin (registers the APO, deploys to Program Files, writes the composite FX chain on CABLE Input)
-3. Set CABLE Input to 7.1 in mmsys.cpl if not already
+3. Set CABLE Input to 7.1 in mmsys.cpl if not already (or `apoormat_policy.ps1 -mode cable`, `install.bat` prints the full command)
 4. Pick output device: `scripts\vss-device-select.bat`
 5. Optional: `tasks\import_tasks.bat` imports Task Scheduler tasks for auto-route on device plug/unplug (do not move the repo folder after import)
 
@@ -85,15 +101,15 @@ Output: `apo\build\vss_apo.dll`, which is where `install.ps1` expects it.
 
 - Click or right-click the tray icon to switch output device or toggle the OSD
 - Scroll on the tray icon to adjust volume
-- Active only when `CABLE Input` is the default device
+- Active only when `CABLE Input` or the routed device is the default device
 - Ignores remote mouse focus from `PowerToys.MouseWithoutBordersHelper.exe`
 
 ## Repo layout
 
-- `apo/` - APO source, build script, install/uninstall
+- `apo/` - APO source, build script, install/uninstall, endpoint format switch
 - `scripts/` - device picker (console) + volume OSD (AutoHotkey)
 - `tasks/` - Task Scheduler auto-route on device changes
-- `debug/` - diagnostic tools (tone player, meters, FX slot dump, 7.1 format switch)
+- `debug/` - diagnostic tools (tone player, meters, FX slot dump)
 - `docs/` - forwarder internals, historical Sonar.APO analysis
 - `tools/` - SoundVolumeView (see NIRSOFT_NOTICE.txt)
 
