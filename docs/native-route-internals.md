@@ -82,6 +82,7 @@ dry run: vss-device-select.bat auto "" "" "" dry-run prints device, route and Bl
 | Native | The headset    | Empty            | Stops its second stream |
 
 - A headset with the native APO never takes the cable route. The forwarder stream would run through the native APO and HeSuVi a second time.
+- Apps on the default device switch to the headset. An app fixed to `CABLE Input` in its own settings does not switch and goes silent.
 
 ## Install
 
