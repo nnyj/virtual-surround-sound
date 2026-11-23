@@ -1,7 +1,8 @@
 # step 440Hz tone through each channel of the endpoint mix format (7.1 positional test)
 # order at 8ch: FL FR C LFE RL RR SL SR
+# usage: tone_sweep.ps1 -target '{0.0.0.00000000}.{guid}' [-secs_per_ch 1.5]   (guid from endpoint_list.ps1)
 param(
-  [string]$target = '{0.0.0.00000000}.{df289d1a-058d-406c-a321-e1a0a6011984}',
+  [Parameter(Mandatory)][string]$target,
   [double]$secs_per_ch = 1.5
 )
 

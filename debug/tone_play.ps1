@@ -1,7 +1,7 @@
 # play 440Hz tone DIRECTLY to an endpoint via WASAPI shared mode (bypasses default-device routing entirely)
-# usage: wasapi_tone.ps1 [-target <endpoint_id>] [-secs 3]
+# usage: tone_play.ps1 -target '{0.0.0.00000000}.{guid}' [-secs 3]   (guid from endpoint_list.ps1)
 param(
-  [string]$target = '{0.0.0.00000000}.{df289d1a-058d-406c-a321-e1a0a6011984}',
+  [Parameter(Mandatory)][string]$target,
   [int]$secs = 3
 )
 

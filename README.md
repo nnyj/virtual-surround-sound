@@ -39,18 +39,23 @@ Plumbing details and Windows APO registration rules: [docs/apo-forwarder-interna
 
 ### Bluetooth sync fix
 
-A Bluetooth headset plays ~250 ms late. Players correct for that delay only when they play to the headset itself, so on the cable route video runs ahead of the sound. The fix puts a second APO from the same dll on the headset, the native route:
+A Bluetooth headset plays sound ~250 ms late. On the cable route players do not know about this delay, so the video runs ahead of the sound.
+
+The fix makes the headset the default device, so players can compensate for the delay themselves. 7.1 surround still works because HeSuVi now runs directly on the headset:
 
 ```
 apps (7.1) -> headset (default device)
-           -> vss native SFX (hosts EAPO pre-mix + post-mix: HeSuVi 7.1 -> binaural, passes FL/FR on)
+           -> vss native SFX (HeSuVi inside)
            -> headset driver
 ```
 
-- Turn on: select the headset in the tray menu, then tick `Bluetooth sync fix`. Needs admin once per headset and restarts Windows audio
-- Turn off: untick the item, the stream effect the headset had before comes back
-- The device picker uses the native route for every headset that has the fix, all other devices stay on the cable route
-- Tested with Microsoft Bluetooth and USB audio drivers only
+- On: select the headset in the tray menu, tick `Bluetooth sync fix`
+- Off: untick, the headset gets its old stream effect back
+- Each toggle needs admin and restarts Windows audio
+- One tick per headset, other devices stay on the cable route
+- Tested with Microsoft Bluetooth and USB audio drivers only, check another headset with `debug/channel_check.ps1`
+
+Internals: [docs/native-route-internals.md](docs/native-route-internals.md)
 
 ## Install
 
@@ -89,7 +94,7 @@ Output: `apo\build\vss_apo.dll`, which is where `install.ps1` expects it.
 
 - Pick an HRIR on the Virtualization tab
 - If virtualization seems off, recheck `On/Off` and `Auto-Deactivate for 2 OS Channels` (latches off if CABLE was ever 2-channel)
-- Verify channel routing: `debug\tone_channels.ps1` sweeps all 8 channels, rears should sound behind you
+- Verify channel routing: `debug/tone_sweep.ps1 -target <device id>` sweeps all 8 channels, rears should sound behind you. `debug/endpoint_list.ps1` prints the ids
 
 ## Volume OSD
 
@@ -109,8 +114,8 @@ Output: `apo\build\vss_apo.dll`, which is where `install.ps1` expects it.
 - `apo/` - APO source, build script, install/uninstall, endpoint format switch
 - `scripts/` - device picker (console) + volume OSD (AutoHotkey)
 - `tasks/` - Task Scheduler auto-route on device changes
-- `debug/` - diagnostic tools (tone player, meters, FX slot dump)
-- `docs/` - forwarder internals, historical Sonar.APO analysis
+- `debug/` - diagnostic tools (endpoint list, tones, peak meter, channel check, FX slot dump)
+- `docs/` - forwarder internals, native route internals, historical Sonar.APO analysis
 - `tools/` - SoundVolumeView (see NIRSOFT_NOTICE.txt)
 
 ## Credits

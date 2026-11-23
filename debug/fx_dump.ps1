@@ -1,5 +1,8 @@
+# print every FxProperties value of render endpoints
+# usage: fx_dump.ps1 -endpoint '{guid}'[,'{guid}']   (guids from endpoint_list.ps1)
+param([Parameter(Mandatory)][string[]]$endpoint)
 $render = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render'
-foreach ($id in '{252b3e5d-6b9f-4ddd-bffc-28f5bafda088}','{df289d1a-058d-406c-a321-e1a0a6011984}') {
+foreach ($id in $endpoint) {
   $fx = "$render\$id\FxProperties"
   Write-Output "=== $id ==="
   if (Test-Path $fx) {

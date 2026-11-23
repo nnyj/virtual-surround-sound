@@ -1,5 +1,6 @@
 # non-elevated TargetDeviceId write via exact rights (KEY_WRITE would be denied)
-param([string]$id)
+# usage: target_write.ps1 -id '{0.0.0.00000000}.{guid}'
+param([Parameter(Mandatory)][string]$id)
 $k = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\VirtualSurroundSound',
   [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
   [System.Security.AccessControl.RegistryRights]::QueryValues -bor [System.Security.AccessControl.RegistryRights]::SetValue)

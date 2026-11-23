@@ -1,4 +1,6 @@
-param([string]$id)
+# print the highest peak of one endpoint during 3 s
+# usage: peak_read.ps1 -id '{0.0.0.00000000}.{guid}'   (guid from endpoint_list.ps1)
+param([Parameter(Mandatory)][string]$id)
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
